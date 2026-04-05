@@ -2,6 +2,8 @@
 
 Desktop manager for Claude Code. Discover sessions, resume conversations, run commands -- all from one window.
 
+![Harness](screenshot.png)
+
 ## Quick Start
 
 ```
