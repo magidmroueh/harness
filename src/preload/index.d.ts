@@ -1,3 +1,11 @@
+export interface AttentionEvent {
+  id: string;
+  terminalId: string;
+  type: "prompt" | "permission" | "complete";
+  summary: string;
+  timestamp: number;
+}
+
 export interface Session {
   id: string;
   pid: number;
@@ -51,6 +59,12 @@ export interface HarnessAPI {
       newBranch?: boolean;
     }) => Promise<Worktree | null>;
     remove: (opts: { cwd: string; path: string; force?: boolean }) => Promise<boolean>;
+  };
+  notifications: {
+    onAttention: (cb: (event: AttentionEvent) => void) => () => void;
+    onFocusTerminal: (cb: (terminalId: string) => void) => () => void;
+    suppress: (id: string) => Promise<void>;
+    unsuppress: (id: string) => Promise<void>;
   };
   dialog: {
     openFolder: () => Promise<string | null>;

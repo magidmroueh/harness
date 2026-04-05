@@ -2,6 +2,7 @@ import { Session } from "../types";
 
 interface Props {
   session: Session | null;
+  unreadCount?: number;
 }
 
 function formatDuration(startedAt: number): string {
@@ -19,7 +20,7 @@ function shortenPath(p: string): string {
   return p;
 }
 
-export function StatusBar({ session }: Props) {
+export function StatusBar({ session, unreadCount = 0 }: Props) {
   if (!session) {
     return (
       <div
@@ -60,6 +61,28 @@ export function StatusBar({ session }: Props) {
       <span>{session.model.split(" ")[0]}</span>
       <span style={{ marginLeft: "auto" }}>{formatDuration(session.startedAt)}</span>
       <span>&lt;${session.cost.toFixed(2)}</span>
+      {unreadCount > 0 && (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            color: "var(--dot-working)",
+            fontWeight: 600,
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "var(--dot-working)",
+              animation: "pulse 2s infinite",
+            }}
+          />
+          {unreadCount}
+        </span>
+      )}
     </div>
   );
 }
