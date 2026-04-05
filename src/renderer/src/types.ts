@@ -1,0 +1,55 @@
+export interface Session {
+  id: string;
+  pid: number;
+  label: string;
+  name: string;
+  cwd: string;
+  branch: string;
+  status: "idle" | "active" | "working" | "error";
+  model: string;
+  cost: number;
+  startedAt: number;
+  lastActivity: number;
+  sessionId: string;
+  entrypoint: string;
+  packageManager: "npm" | "yarn" | "pnpm" | "bun";
+}
+
+export interface Worktree {
+  path: string;
+  branch: string;
+  head: string;
+  isMain: boolean;
+}
+
+export interface ToolkitAction {
+  id: string;
+  label: string;
+  icon: string;
+  /** 'claude' = write prompt into active claude session, 'shell' = run in shell, 'ui' = internal action */
+  mode: "claude" | "shell" | "ui";
+  command: string;
+}
+
+/** A terminal instance — decoupled from session IDs */
+export interface TerminalInstance {
+  terminalId: string;
+  cwd: string;
+  projectName: string;
+  resumeSessionId?: string; // set only when resuming an existing session
+}
+
+export type PanelTab = "sessions" | "activity";
+
+export interface ActivityEvent {
+  id: string;
+  type:
+    | "session_created"
+    | "session_ended"
+    | "command_run"
+    | "worktree_created"
+    | "worktree_removed";
+  message: string;
+  timestamp: number;
+  sessionId?: string;
+}
