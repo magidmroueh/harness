@@ -1,11 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
-import { Session, TerminalInstance, PanelTab, ActivityEvent } from "../types";
+import { Session, TerminalInstance, PanelTab, ActivityEvent, AttentionEvent } from "../types";
+import { timeAgo } from "../utils/time";
+import { NotificationPanel } from "./NotificationPanel";
 
 interface Props {
   sessions: Session[];
   terminals: TerminalInstance[];
   activeTerminalId: string | null;
   activity: ActivityEvent[];
+  notifications: AttentionEvent[];
+  unreadByTerminal: Map<string, number>;
+  unreadCount: number;
+  terminalNames: Map<string, string>;
+  onDismissNotification: (id: string) => void;
+  onClearNotifications: () => void;
   onResumeSession: (session: Session) => void;
   onSelectTerminal: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
@@ -14,12 +22,31 @@ interface Props {
   onNewSessionInProject: (cwd: string, name: string) => void;
 }
 
-function timeAgo(ts: number): string {
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+function Badge({ count, size = "md", pulse = false }: { count: number; size?: "sm" | "md"; pulse?: boolean }) {
+  const dim = size === "sm" ? 14 : 16;
+  const font = size === "sm" ? "0.55rem" : "0.6rem";
+  const pad = size === "sm" ? "0 4px" : "0 5px";
+  return (
+    <span
+      style={{
+        background: "var(--dot-working)",
+        color: "#000",
+        fontSize: font,
+        fontWeight: 700,
+        borderRadius: "var(--radius-full)",
+        padding: pad,
+        minWidth: dim,
+        height: dim,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 1,
+        animation: pulse ? "pulse 2s infinite" : undefined,
+      }}
+    >
+      {count}
+    </span>
+  );
 }
 
 interface ProjectGroup {
@@ -34,6 +61,12 @@ export function SessionPanel({
   terminals,
   activeTerminalId,
   activity,
+  notifications,
+  unreadByTerminal,
+  unreadCount,
+  terminalNames,
+  onDismissNotification,
+  onClearNotifications,
   onResumeSession,
   onSelectTerminal,
   onCloseTerminal,
@@ -60,7 +93,7 @@ export function SessionPanel({
     for (const g of groups.values()) {
       g.sessions.sort((a, b) => b.lastActivity - a.lastActivity);
     }
-    return Array.from(groups.values());
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [sessions]);
 
   // Auto-expand projects on first load
@@ -99,7 +132,7 @@ export function SessionPanel({
         }}
       >
         <div style={{ display: "flex", gap: 16 }}>
-          {(["sessions", "activity"] as PanelTab[]).map((t) => (
+          {(["sessions", "notifications", "activity"] as PanelTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -114,9 +147,15 @@ export function SessionPanel({
                 textTransform: "capitalize",
                 transition: "color 150ms",
                 fontFamily: "var(--font-sans)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              {t}
+              {t === "notifications" ? "alerts" : t}
+              {t === "notifications" && unreadCount > 0 && (
+                <Badge count={unreadCount} />
+              )}
             </button>
           ))}
         </div>
@@ -356,6 +395,16 @@ export function SessionPanel({
                                 attached
                               </span>
                             )}
+                            {attachedTerminal &&
+                              (unreadByTerminal.get(attachedTerminal.terminalId) || 0) > 0 && (
+                                <span style={{ marginLeft: isResumed ? 4 : "auto" }}>
+                                  <Badge
+                                    count={unreadByTerminal.get(attachedTerminal.terminalId)!}
+                                    size="sm"
+                                    pulse
+                                  />
+                                </span>
+                              )}
                             {attachedTerminal ? (
                               <button
                                 onClick={(e) => {
@@ -430,6 +479,14 @@ export function SessionPanel({
               );
             })
           )
+        ) : tab === "notifications" ? (
+          <NotificationPanel
+            notifications={notifications}
+            onDismiss={onDismissNotification}
+            onClearAll={onClearNotifications}
+            onSelectTerminal={onSelectTerminal}
+            terminalNames={terminalNames}
+          />
         ) : (
           <div style={{ padding: 16 }}>
             {activity.length === 0 ? (

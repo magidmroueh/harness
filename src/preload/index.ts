@@ -38,6 +38,20 @@ const api = {
     remove: (opts: { cwd: string; path: string; force?: boolean }) =>
       ipcRenderer.invoke("worktrees:remove", opts),
   },
+  notifications: {
+    onAttention: (cb: (event: { id: string; terminalId: string; type: string; summary: string; timestamp: number }) => void) => {
+      const handler = (_: unknown, event: Parameters<typeof cb>[0]) => cb(event);
+      ipcRenderer.on("notification:attention", handler);
+      return () => { ipcRenderer.removeListener("notification:attention", handler); };
+    },
+    onFocusTerminal: (cb: (terminalId: string) => void) => {
+      const handler = (_: unknown, terminalId: string) => cb(terminalId);
+      ipcRenderer.on("notification:focus-terminal", handler);
+      return () => { ipcRenderer.removeListener("notification:focus-terminal", handler); };
+    },
+    suppress: (id: string) => ipcRenderer.invoke("notification:suppress", { id }),
+    unsuppress: (id: string) => ipcRenderer.invoke("notification:unsuppress", { id }),
+  },
   dialog: {
     openFolder: () => ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,
   },

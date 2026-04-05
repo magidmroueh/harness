@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, Notification, ipcMain, dialog } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { SessionManager, detectPackageManager } from "./sessions";
 import { WorktreeManager } from "./worktrees";
+import { AttentionDetector } from "./notifications";
 
 let pty: typeof import("node-pty") | null = null;
 try {
@@ -15,6 +16,7 @@ let mainWindow: BrowserWindow | null = null;
 const ptys = new Map<string, import("node-pty").IPty>();
 const sessions = new SessionManager();
 const worktrees = new WorktreeManager();
+const detector = new AttentionDetector();
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -40,6 +42,22 @@ function createWindow(): void {
     for (const [id, p] of ptys) {
       p.kill();
       ptys.delete(id);
+    }
+  });
+
+  // Notification: forward attention events to renderer + desktop notification
+  detector.onAttention((event) => {
+    if (mainWindow?.isDestroyed()) return;
+    mainWindow?.webContents.send("notification:attention", event);
+
+    if (!mainWindow?.isFocused() && Notification.isSupported()) {
+      const n = new Notification({ title: "Harness", body: event.summary });
+      n.on("click", () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+        mainWindow?.webContents.send("notification:focus-terminal", event.terminalId);
+      });
+      n.show();
     }
   });
 
@@ -71,6 +89,7 @@ ipcMain.handle(
     ptys.set(id, p);
 
     p.onData((data) => {
+      detector.feed(id, data);
       if (!mainWindow?.isDestroyed()) {
         mainWindow?.webContents.send(`terminal:data:${id}`, data);
       }
@@ -78,6 +97,7 @@ ipcMain.handle(
 
     p.onExit(({ exitCode }) => {
       ptys.delete(id);
+      detector.clear(id);
       if (!mainWindow?.isDestroyed()) {
         mainWindow?.webContents.send(`terminal:exit:${id}`, exitCode);
       }
@@ -103,6 +123,17 @@ ipcMain.handle(
 ipcMain.handle("terminal:kill", (_, { id }: { id: string }) => {
   ptys.get(id)?.kill();
   ptys.delete(id);
+  detector.clear(id);
+});
+
+// --- Notification IPC ---
+
+ipcMain.handle("notification:suppress", (_, { id }: { id: string }) => {
+  detector.suppress(id);
+});
+
+ipcMain.handle("notification:unsuppress", (_, { id }: { id: string }) => {
+  detector.unsuppress(id);
 });
 
 // --- Dialog IPC ---

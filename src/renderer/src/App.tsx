@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Session, TerminalInstance, ToolkitAction as ActionType, ActivityEvent } from "./types";
 import { useSessions, useDeleteSession } from "./hooks/useSessions";
+import { useNotifications } from "./hooks/useNotifications";
+import { useNotificationSound } from "./hooks/useNotificationSound";
 import { TitleBar } from "./components/TitleBar";
 import { SessionPanel } from "./components/SessionPanel";
 import { TerminalView } from "./components/TerminalView";
@@ -31,6 +33,21 @@ export function App() {
   terminalsRef.current = terminals;
   const activeTerminalIdRef = useRef(activeTerminalId);
   activeTerminalIdRef.current = activeTerminalId;
+
+  const handleFocusTerminal = useCallback((terminalId: string) => {
+    if (terminalsRef.current.some((t) => t.terminalId === terminalId)) {
+      setActiveTerminalId(terminalId);
+    }
+  }, []);
+
+  const {
+    notifications,
+    unreadByTerminal,
+    unreadCount,
+    dismiss: dismissNotification,
+    clearAll: clearNotifications,
+  } = useNotifications(activeTerminalId, handleFocusTerminal);
+  useNotificationSound(unreadCount);
 
   const activeTerminal = terminals.find((t) => t.terminalId === activeTerminalId) || null;
 
@@ -147,6 +164,15 @@ export function App() {
     },
     [handleNewSession],
   );
+
+  // Build terminal name map for notification panel
+  const terminalNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of terminals) {
+      map.set(t.terminalId, t.projectName);
+    }
+    return map;
+  }, [terminals]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -311,7 +337,7 @@ export function App() {
               </>
             )}
           </div>
-          <StatusBar session={activeSessionForStatus} />
+          <StatusBar session={activeSessionForStatus} unreadCount={unreadCount} />
         </div>
 
         {/* Right sidebar */}
@@ -344,6 +370,12 @@ export function App() {
               terminals={terminals}
               activeTerminalId={activeTerminalId}
               activity={activity}
+              notifications={notifications}
+              unreadByTerminal={unreadByTerminal}
+              unreadCount={unreadCount}
+              terminalNames={terminalNames}
+              onDismissNotification={dismissNotification}
+              onClearNotifications={clearNotifications}
               onResumeSession={handleResumeSession}
               onSelectTerminal={setActiveTerminalId}
               onCloseTerminal={handleCloseTerminal}
