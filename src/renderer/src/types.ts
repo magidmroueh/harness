@@ -36,6 +36,7 @@ export interface TerminalInstance {
   terminalId: string;
   cwd: string;
   projectName: string;
+  packageManager: "npm" | "yarn" | "pnpm" | "bun";
   resumeSessionId?: string; // set only when resuming an existing session
 }
 

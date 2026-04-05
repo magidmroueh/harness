@@ -40,6 +40,7 @@ export interface HarnessAPI {
     discover: () => Promise<Session[]>;
     listAll: () => Promise<Session[]>;
     delete: (opts: { cwd: string; sessionId: string }) => Promise<boolean>;
+    detectPM: (cwd: string) => Promise<"npm" | "yarn" | "pnpm" | "bun">;
   };
   worktrees: {
     list: (cwd: string) => Promise<Worktree[]>;

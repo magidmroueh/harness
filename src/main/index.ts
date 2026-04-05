@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
-import { SessionManager } from "./sessions";
+import { SessionManager, detectPackageManager } from "./sessions";
 import { WorktreeManager } from "./worktrees";
 
 let pty: typeof import("node-pty") | null = null;
@@ -122,6 +122,7 @@ ipcMain.handle("dialog:open-folder", async () => {
 ipcMain.handle("sessions:discover", () => sessions.discover());
 ipcMain.handle("sessions:list-all", () => sessions.listAll());
 ipcMain.handle("sessions:delete", (_, opts) => sessions.delete(opts));
+ipcMain.handle("sessions:detect-pm", (_, { cwd }) => detectPackageManager(cwd));
 
 // --- Worktree IPC ---
 

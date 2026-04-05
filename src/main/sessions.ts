@@ -66,7 +66,7 @@ function getBranch(cwd: string): string {
 
 type PackageManager = "npm" | "yarn" | "pnpm" | "bun";
 
-function detectPackageManager(cwd: string): PackageManager {
+export function detectPackageManager(cwd: string): PackageManager {
   if (existsSync(join(cwd, "bun.lockb")) || existsSync(join(cwd, "bun.lock"))) return "bun";
   if (existsSync(join(cwd, "pnpm-lock.yaml"))) return "pnpm";
   if (existsSync(join(cwd, "yarn.lock"))) return "yarn";

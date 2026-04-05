@@ -28,6 +28,8 @@ const api = {
     listAll: () => ipcRenderer.invoke("sessions:list-all"),
     delete: (opts: { cwd: string; sessionId: string }) =>
       ipcRenderer.invoke("sessions:delete", opts),
+    detectPM: (cwd: string) =>
+      ipcRenderer.invoke("sessions:detect-pm", { cwd }) as Promise<"npm" | "yarn" | "pnpm" | "bun">,
   },
   worktrees: {
     list: (cwd: string) => ipcRenderer.invoke("worktrees:list", { cwd }),

@@ -52,7 +52,7 @@ export function App() {
         lastActivity: Date.now(),
         sessionId: "",
         entrypoint: "harness",
-        packageManager: "npm",
+        packageManager: activeTerminal.packageManager,
       }
     );
   }, [activeTerminal, sessions]);
@@ -64,14 +64,16 @@ export function App() {
   }, []);
 
   const handleResumeSession = useCallback(
-    (session: Session) => {
+    async (session: Session) => {
       const terminalId = crypto.randomUUID();
+      const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
       setTerminals((prev) => [
         ...prev,
         {
           terminalId,
           cwd: session.cwd,
           projectName: session.name,
+          packageManager: pm,
           resumeSessionId: session.sessionId,
         },
       ]);
@@ -82,10 +84,14 @@ export function App() {
   );
 
   const handleNewSession = useCallback(
-    (name: string, cwd: string) => {
+    async (name: string, cwd: string) => {
       const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
       const terminalId = crypto.randomUUID();
-      setTerminals((prev) => [...prev, { terminalId, cwd: expandedCwd, projectName: name }]);
+      const pm = await window.api.sessions.detectPM(expandedCwd);
+      setTerminals((prev) => [
+        ...prev,
+        { terminalId, cwd: expandedCwd, projectName: name, packageManager: pm },
+      ]);
       setActiveTerminalId(terminalId);
       addActivity("session_created", `New session: ${name}`);
     },
