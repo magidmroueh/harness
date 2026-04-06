@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Session, TerminalInstance, PanelTab, ActivityEvent, AttentionEvent } from "../types";
 import { timeAgo } from "../utils/time";
 import { NotificationPanel } from "./NotificationPanel";
@@ -77,11 +77,43 @@ export function SessionPanel({
   const [tab, setTab] = useState<PanelTab>("sessions");
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<Session | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Group sessions by project (cwd)
+  // Cmd+F to open search, Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTab("sessions");
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+      if (e.key === "Escape" && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [searchOpen]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+  }, []);
+
+  // Group sessions by project (cwd), filtered by search query
   const projects = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     const groups = new Map<string, ProjectGroup>();
     for (const s of sessions) {
+      // When searching, filter sessions that match the query
+      if (q) {
+        const haystack = `${s.name} ${s.label} ${s.branch} ${s.cwd} ${s.model}`.toLowerCase();
+        if (!haystack.includes(q)) continue;
+      }
       const existing = groups.get(s.cwd);
       if (existing) {
         existing.sessions.push(s);
@@ -89,12 +121,11 @@ export function SessionPanel({
         groups.set(s.cwd, { name: s.name, cwd: s.cwd, branch: s.branch, sessions: [s] });
       }
     }
-    // Sort sessions within each group by lastActivity desc
     for (const g of groups.values()) {
       g.sessions.sort((a, b) => b.lastActivity - a.lastActivity);
     }
     return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [sessions]);
+  }, [sessions, searchQuery]);
 
   // Auto-expand projects on first load
   useEffect(() => {
@@ -159,37 +190,134 @@ export function SessionPanel({
             </button>
           ))}
         </div>
-        <button
-          onClick={onNewSession}
-          style={{
-            background: "none",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-sm)",
-            color: "var(--text-muted)",
-            cursor: "pointer",
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1rem",
-            transition: "color 150ms, border-color 150ms",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-            e.currentTarget.style.borderColor = "var(--text-muted)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-muted)";
-            e.currentTarget.style.borderColor = "var(--border)";
-          }}
-        >
-          +
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={() => {
+              setSearchOpen(true);
+              setTab("sessions");
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+            }}
+            data-tooltip="⌘F"
+            data-tooltip-pos="bottom"
+            style={{
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              color: searchOpen ? "var(--text-primary)" : "var(--text-muted)",
+              cursor: "pointer",
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.75rem",
+              transition: "color 150ms, border-color 150ms",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+              e.currentTarget.style.borderColor = "var(--text-muted)";
+            }}
+            onMouseLeave={(e) => {
+              if (!searchOpen) {
+                e.currentTarget.style.color = "var(--text-muted)";
+                e.currentTarget.style.borderColor = "var(--border)";
+              }
+            }}
+          >
+            ⌕
+          </button>
+          <button
+            onClick={onNewSession}
+            style={{
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1rem",
+              transition: "color 150ms, border-color 150ms",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+              e.currentTarget.style.borderColor = "var(--text-muted)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-muted)";
+              e.currentTarget.style.borderColor = "var(--border)";
+            }}
+          >
+            +
+          </button>
+        </div>
       </div>
 
+      {/* Search bar */}
+      {searchOpen && (
+        <div
+          style={{
+            padding: "8px 16px",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter sessions..."
+            style={{
+              flex: 1,
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "5px 10px",
+              fontSize: "0.78rem",
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-sans)",
+              outline: "none",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--accent)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+            }}
+          />
+          <button
+            onClick={closeSearch}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              fontSize: "0.7rem",
+              padding: "2px 4px",
+              flexShrink: 0,
+              transition: "color 150ms",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
         {tab === "sessions" ? (
           projects.length === 0 ? (
             <div
@@ -200,11 +328,11 @@ export function SessionPanel({
                 fontSize: "0.8125rem",
               }}
             >
-              No sessions found
+              {searchQuery ? "No matching sessions" : "No sessions found"}
             </div>
           ) : (
             projects.map((project) => {
-              const isExpanded = expandedProjects.has(project.cwd);
+              const isExpanded = searchQuery ? true : expandedProjects.has(project.cwd);
               return (
                 <div key={project.cwd}>
                   {/* Project header (accordion toggle) */}
@@ -366,17 +494,25 @@ export function SessionPanel({
                               }}
                             />
                             <span
+                              data-tooltip={session.label}
+                              data-tooltip-pos="bottom"
                               style={{
-                                color: "var(--text-secondary)",
-                                fontSize: "0.75rem",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
                                 flex: 1,
                                 minWidth: 0,
                               }}
                             >
-                              {session.label}
+                              <span
+                                style={{
+                                  color: "var(--text-secondary)",
+                                  fontSize: "0.75rem",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  display: "block",
+                                }}
+                              >
+                                {session.label}
+                              </span>
                             </span>
                             <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>
                               {timeAgo(session.lastActivity)}
@@ -538,6 +674,7 @@ export function SessionPanel({
           letterSpacing: "0.02em",
         }}
       >
+        <span>⌘F Search</span>
         <span>⌘0-9 Jump</span>
         <span>⌘[ Prev</span>
         <span>⌘] Next</span>
