@@ -144,7 +144,7 @@ export function App() {
       if (action.mode === "claude") {
         // Claude actions write into the active Claude terminal
         if (!activeTerminalId) return;
-        window.api.terminal.write(activeTerminalId, action.command + "\n");
+        window.api.terminal.write(activeTerminalId, action.command + "\r");
       } else if (action.mode === "shell") {
         // Shell actions open in the split pane
         // Setting new state unmounts the old TerminalView, whose cleanup kills the old PTY

@@ -63,6 +63,13 @@ function buildActions(pm: PM): ActionType[] {
       mode: "shell",
       command: "git log --oneline -10",
     },
+    {
+      id: "claude-diff",
+      label: "Show Changes",
+      icon: "⌥",
+      mode: "claude",
+      command: "/diff",
+    },
 
     // UI actions
     { id: "worktree", label: "Worktree", icon: "◇", mode: "ui", command: "worktree" },
