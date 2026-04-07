@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 export interface Worktree {
   path: string;
@@ -10,7 +10,7 @@ export interface Worktree {
 export class WorktreeManager {
   list(cwd: string): Worktree[] {
     try {
-      const output = execSync("git worktree list --porcelain", { cwd, encoding: "utf-8" });
+      const output = execFileSync("git", ["worktree", "list", "--porcelain"], { cwd, encoding: "utf-8" });
       return this.parse(output);
     } catch {
       return [];
@@ -24,11 +24,10 @@ export class WorktreeManager {
     newBranch?: boolean;
   }): Worktree | null {
     try {
-      const flag = opts.newBranch ? "-b" : "";
-      execSync(`git worktree add ${flag} "${opts.path}" "${opts.branch}"`, {
-        cwd: opts.cwd,
-        encoding: "utf-8",
-      });
+      const args = ["worktree", "add"];
+      if (opts.newBranch) args.push("-b");
+      args.push(opts.path, opts.branch);
+      execFileSync("git", args, { cwd: opts.cwd, encoding: "utf-8" });
       return this.list(opts.cwd).find((w) => w.path === opts.path) || null;
     } catch (e) {
       console.error("worktree create failed:", e);
@@ -38,8 +37,10 @@ export class WorktreeManager {
 
   remove(opts: { cwd: string; path: string; force?: boolean }): boolean {
     try {
-      const flag = opts.force ? "--force" : "";
-      execSync(`git worktree remove ${flag} "${opts.path}"`, { cwd: opts.cwd, encoding: "utf-8" });
+      const args = ["worktree", "remove"];
+      if (opts.force) args.push("--force");
+      args.push(opts.path);
+      execFileSync("git", args, { cwd: opts.cwd, encoding: "utf-8" });
       return true;
     } catch {
       return false;
