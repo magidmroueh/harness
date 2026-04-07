@@ -1,4 +1,5 @@
-import { ToolkitAction as ActionType } from "../types";
+import { useRef } from "react";
+import { ToolkitAction as ActionType, IconHandle } from "../types";
 
 interface Props {
   action: ActionType;
@@ -12,6 +13,8 @@ const modeColor: Record<ActionType["mode"], string> = {
 };
 
 export function ToolkitAction({ action, onRun }: Props) {
+  const iconRef = useRef<IconHandle>(null);
+
   return (
     <button
       onClick={onRun}
@@ -38,6 +41,7 @@ export function ToolkitAction({ action, onRun }: Props) {
         el.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
         el.style.color = "var(--text-primary)";
         el.style.borderColor = "var(--text-muted)";
+        iconRef.current?.startAnimation();
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget;
@@ -45,6 +49,7 @@ export function ToolkitAction({ action, onRun }: Props) {
         el.style.boxShadow = "none";
         el.style.color = "var(--text-secondary)";
         el.style.borderColor = "var(--border)";
+        iconRef.current?.stopAnimation();
       }}
       onMouseDown={(e) => {
         e.currentTarget.style.transform = "scale(0.97)";
@@ -53,16 +58,22 @@ export function ToolkitAction({ action, onRun }: Props) {
         e.currentTarget.style.transform = "translateY(-2px)";
       }}
     >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          flexShrink: 0,
-          backgroundColor: modeColor[action.mode],
-          opacity: 0.7,
-        }}
-      />
+      {action.IconComponent ? (
+        <span style={{ flexShrink: 0, color: modeColor[action.mode], display: "flex" }}>
+          <action.IconComponent ref={iconRef} size={14} />
+        </span>
+      ) : (
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            flexShrink: 0,
+            backgroundColor: modeColor[action.mode],
+            opacity: 0.7,
+          }}
+        />
+      )}
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
         {action.label}
       </span>

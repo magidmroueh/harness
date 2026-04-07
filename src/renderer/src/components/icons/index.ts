@@ -1,0 +1,10 @@
+export { SunIcon } from "./sun";
+export { MoonIcon } from "./moon";
+export { SearchIcon } from "./search";
+export { PlayIcon } from "./play";
+export { GitPullRequestIcon } from "./git-pull-request";
+export { GitCommitIcon } from "./git-commit";
+export { TerminalIcon } from "./terminal";
+export { GitBranchIcon } from "./git-branch";
+export { EyeIcon } from "./eye";
+export { PlusIcon } from "./plus";

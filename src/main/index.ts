@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, Notification, ipcMain, dialog, nativeImage } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { SessionManager, detectPackageManager } from "./sessions";
@@ -27,6 +27,7 @@ function createWindow(): void {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: "#0c0a09",
+    icon: join(__dirname, "../../resources/icon.icns"),
     show: false,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -165,6 +166,14 @@ ipcMain.handle("worktrees:remove", (_, opts) => worktrees.remove(opts));
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId("com.harness");
+
+  // Set Dock icon (macOS) — required in dev mode since there's no app bundle
+  if (process.platform === "darwin") {
+    const iconPath = join(__dirname, "../../resources/icon.icns");
+    const dockIcon = nativeImage.createFromPath(iconPath);
+    if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon);
+  }
+
   app.on("browser-window-created", (_, window) => optimizer.watchWindowShortcuts(window));
   createWindow();
   app.on("activate", () => {

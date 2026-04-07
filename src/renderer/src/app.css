@@ -118,6 +118,11 @@ input:focus {
   top: calc(100% + 6px);
 }
 
+[data-tooltip-align="right"]::after {
+  left: auto;
+  right: 0;
+}
+
 #root > div {
   animation: fadeIn 600ms var(--ease-out-expo) both;
 }

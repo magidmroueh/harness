@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Session, TerminalInstance, ToolkitAction as ActionType, ActivityEvent } from "./types";
 import { useSessions, useDeleteSession } from "./hooks/useSessions";
+import { useTheme } from "./hooks/useTheme";
 import { useNotifications } from "./hooks/useNotifications";
 import { useNotificationSound } from "./hooks/useNotificationSound";
 import { TitleBar } from "./components/TitleBar";
@@ -21,6 +22,7 @@ interface SplitPane {
 export function App() {
   const { data: sessions = [] } = useSessions();
   const deleteSession = useDeleteSession();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const [terminals, setTerminals] = useState<TerminalInstance[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
@@ -206,7 +208,7 @@ export function App() {
         overflow: "hidden",
       }}
     >
-      <TitleBar />
+      <TitleBar theme={theme} onToggleTheme={toggleTheme} />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Terminal area */}
@@ -262,6 +264,7 @@ export function App() {
                     cwd={t.cwd}
                     isActive={t.terminalId === activeTerminalId}
                     resumeSessionId={t.resumeSessionId}
+                    theme={theme}
                   />
                 ))
               )}
@@ -331,6 +334,7 @@ export function App() {
                       cwd={splitPane.cwd}
                       isActive
                       shellCommand={splitPane.command}
+                      theme={theme}
                     />
                   </div>
                 </div>
