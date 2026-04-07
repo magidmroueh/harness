@@ -22,11 +22,17 @@ export interface Worktree {
   isMain: boolean;
 }
 
+export interface IconHandle {
+  startAnimation: () => void;
+  stopAnimation: () => void;
+}
+
 export interface ToolkitAction {
   id: string;
   label: string;
-  icon: string;
-  /** 'claude' = write prompt into active claude session, 'shell' = run in shell, 'ui' = internal action */
+  IconComponent?: React.ForwardRefExoticComponent<
+    { size?: number } & React.RefAttributes<IconHandle>
+  >;
   mode: "claude" | "shell" | "ui";
   command: string;
 }

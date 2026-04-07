@@ -1,6 +1,14 @@
 import { useMemo } from "react";
 import { Session, ToolkitAction as ActionType } from "../types";
 import { ToolkitAction } from "./ToolkitAction";
+import {
+  GitPullRequestIcon,
+  GitCommitIcon,
+  EyeIcon,
+  TerminalIcon,
+  PlayIcon,
+  GitBranchIcon,
+} from "./icons";
 
 interface Props {
   session: Session | null;
@@ -26,53 +34,18 @@ const testCmd: Record<PM, string> = {
 
 function buildActions(pm: PM): ActionType[] {
   return [
-    // Claude actions
-    { id: "create-pr", label: "Create PR", icon: "⌥", mode: "claude", command: "/pr" },
-    { id: "commit-push", label: "Commit & Push", icon: "⌥", mode: "claude", command: "/commit" },
-    {
-      id: "review",
-      label: "Review Changes",
-      icon: "⌥",
-      mode: "claude",
-      command: "review my recent changes and suggest improvements",
-    },
-    {
-      id: "explain",
-      label: "Explain Code",
-      icon: "⌥",
-      mode: "claude",
-      command: "explain the architecture of this project",
-    },
-
-    // Shell actions — use detected package manager
-    {
-      id: "dev-server",
-      label: "Dev Server",
-      icon: "▶",
-      mode: "shell",
-      command: `${runCmd[pm]} dev`,
-    },
-    { id: "run-tests", label: "Run Tests", icon: "▶", mode: "shell", command: testCmd[pm] },
-    { id: "lint", label: "Lint", icon: "▶", mode: "shell", command: `${runCmd[pm]} lint` },
-    { id: "build", label: "Build", icon: "▶", mode: "shell", command: `${runCmd[pm]} build` },
-    { id: "git-status", label: "Git Status", icon: "▶", mode: "shell", command: "git status" },
-    {
-      id: "git-log",
-      label: "Git Log",
-      icon: "▶",
-      mode: "shell",
-      command: "git log --oneline -10",
-    },
-    {
-      id: "claude-diff",
-      label: "Show Changes",
-      icon: "⌥",
-      mode: "claude",
-      command: "/diff",
-    },
-
-    // UI actions
-    { id: "worktree", label: "Worktree", icon: "◇", mode: "ui", command: "worktree" },
+    { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "/pr" },
+    { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "/commit" },
+    { id: "review", label: "Review Changes", IconComponent: EyeIcon, mode: "claude", command: "review my recent changes and suggest improvements" },
+    { id: "explain", label: "Explain Code", IconComponent: TerminalIcon, mode: "claude", command: "explain the architecture of this project" },
+    { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "/diff" },
+    { id: "dev-server", label: "Dev Server", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} dev` },
+    { id: "run-tests", label: "Run Tests", IconComponent: PlayIcon, mode: "shell", command: testCmd[pm] },
+    { id: "lint", label: "Lint", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} lint` },
+    { id: "build", label: "Build", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} build` },
+    { id: "git-status", label: "Git Status", IconComponent: GitCommitIcon, mode: "shell", command: "git status" },
+    { id: "git-log", label: "Git Log", IconComponent: GitCommitIcon, mode: "shell", command: "git log --oneline -10" },
+    { id: "worktree", label: "Worktree", IconComponent: GitBranchIcon, mode: "ui", command: "worktree" },
   ];
 }
 

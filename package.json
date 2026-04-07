@@ -11,13 +11,32 @@
     "lint": "oxlint src/",
     "lint:fix": "oxlint --fix src/",
     "fmt": "oxfmt src/",
-    "fmt:check": "oxfmt --check src/"
+    "fmt:check": "oxfmt --check src/",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.harness",
+    "productName": "Harness",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "mac": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    }
   },
   "dependencies": {
     "@tanstack/react-query": "^5.96.2",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^5.5.0",
+    "motion": "^12.38.0",
     "node-pty": "^1.0.0"
   },
   "devDependencies": {
@@ -28,6 +47,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^32.2.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",
     "oxfmt": "^0.43.0",
     "oxlint": "^1.58.0",

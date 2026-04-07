@@ -9,11 +9,61 @@ interface Props {
   cwd?: string;
   isActive: boolean;
   resumeSessionId?: string;
-  /** If set, runs this shell command instead of launching Claude */
   shellCommand?: string;
+  theme?: "light" | "dark";
 }
 
-export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellCommand }: Props) {
+const DARK_THEME = {
+  background: "#0c0a09",
+  foreground: "#fafaf9",
+  cursor: "#fafaf9",
+  cursorAccent: "#0c0a09",
+  selectionBackground: "#44403c",
+  selectionForeground: "#fafaf9",
+  black: "#1c1917",
+  red: "#ef4444",
+  green: "#22c55e",
+  yellow: "#eab308",
+  blue: "#3b82f6",
+  magenta: "#a855f7",
+  cyan: "#06b6d4",
+  white: "#fafaf9",
+  brightBlack: "#78716c",
+  brightRed: "#f87171",
+  brightGreen: "#4ade80",
+  brightYellow: "#facc15",
+  brightBlue: "#60a5fa",
+  brightMagenta: "#c084fc",
+  brightCyan: "#22d3ee",
+  brightWhite: "#ffffff",
+};
+
+const LIGHT_THEME = {
+  background: "#ffffff",
+  foreground: "#1c1917",
+  cursor: "#1c1917",
+  cursorAccent: "#ffffff",
+  selectionBackground: "#e7e5e4",
+  selectionForeground: "#1c1917",
+  black: "#1c1917",
+  red: "#dc2626",
+  green: "#16a34a",
+  yellow: "#ca8a04",
+  blue: "#2563eb",
+  magenta: "#9333ea",
+  cyan: "#0891b2",
+  white: "#fafaf9",
+  brightBlack: "#a8a29e",
+  brightRed: "#ef4444",
+  brightGreen: "#22c55e",
+  brightYellow: "#eab308",
+  brightBlue: "#3b82f6",
+  brightMagenta: "#a855f7",
+  brightCyan: "#06b6d4",
+  brightWhite: "#ffffff",
+};
+
+export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellCommand, theme = "dark" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -24,30 +74,7 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
     if (!el) return;
 
     const term = new Terminal({
-      theme: {
-        background: "#0c0a09",
-        foreground: "#fafaf9",
-        cursor: "#fafaf9",
-        cursorAccent: "#0c0a09",
-        selectionBackground: "#44403c",
-        selectionForeground: "#fafaf9",
-        black: "#1c1917",
-        red: "#ef4444",
-        green: "#22c55e",
-        yellow: "#eab308",
-        blue: "#3b82f6",
-        magenta: "#a855f7",
-        cyan: "#06b6d4",
-        white: "#fafaf9",
-        brightBlack: "#78716c",
-        brightRed: "#f87171",
-        brightGreen: "#4ade80",
-        brightYellow: "#facc15",
-        brightBlue: "#60a5fa",
-        brightMagenta: "#c084fc",
-        brightCyan: "#22d3ee",
-        brightWhite: "#ffffff",
-      },
+      theme: theme === "dark" ? DARK_THEME : LIGHT_THEME,
       fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace",
       fontSize: 13,
       lineHeight: 1.4,
@@ -140,6 +167,12 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
       window.api.terminal.kill(sessionId);
     };
   }, [sessionId, cwd, resumeSessionId, shellCommand]);
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.theme = theme === "dark" ? DARK_THEME : LIGHT_THEME;
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (isActive && termRef.current) {

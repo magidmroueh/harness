@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Session, TerminalInstance, PanelTab, ActivityEvent, AttentionEvent } from "../types";
+import { Session, TerminalInstance, PanelTab, ActivityEvent, AttentionEvent, IconHandle } from "../types";
 import { timeAgo } from "../utils/time";
 import { NotificationPanel } from "./NotificationPanel";
+import { SearchIcon, PlusIcon } from "./icons";
 
 interface Props {
   sessions: Session[];
@@ -80,6 +81,8 @@ export function SessionPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchIconRef = useRef<IconHandle>(null);
+  const plusIconRef = useRef<IconHandle>(null);
 
   // Cmd+F to open search, Escape to close
   useEffect(() => {
@@ -191,41 +194,27 @@ export function SessionPanel({
           ))}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
+          <div
             onClick={() => {
               setSearchOpen(true);
               setTab("sessions");
               requestAnimationFrame(() => searchInputRef.current?.focus());
             }}
+            onMouseEnter={() => searchIconRef.current?.startAnimation()}
+            onMouseLeave={() => searchIconRef.current?.stopAnimation()}
             data-tooltip="⌘F"
             data-tooltip-pos="bottom"
             style={{
-              background: "none",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
               color: searchOpen ? "var(--text-primary)" : "var(--text-muted)",
               cursor: "pointer",
-              width: 28,
-              height: 28,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "0.75rem",
-              transition: "color 150ms, border-color 150ms",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--text-primary)";
-              e.currentTarget.style.borderColor = "var(--text-muted)";
-            }}
-            onMouseLeave={(e) => {
-              if (!searchOpen) {
-                e.currentTarget.style.color = "var(--text-muted)";
-                e.currentTarget.style.borderColor = "var(--border)";
-              }
+              transition: "color 150ms",
             }}
           >
-            ⌕
-          </button>
+            <SearchIcon ref={searchIconRef} size={16} />
+          </div>
           <button
             onClick={onNewSession}
             style={{
@@ -239,19 +228,20 @@ export function SessionPanel({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1rem",
               transition: "color 150ms, border-color 150ms",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = "var(--text-primary)";
               e.currentTarget.style.borderColor = "var(--text-muted)";
+              plusIconRef.current?.startAnimation();
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = "var(--text-muted)";
               e.currentTarget.style.borderColor = "var(--border)";
+              plusIconRef.current?.stopAnimation();
             }}
           >
-            +
+            <PlusIcon ref={plusIconRef} size={16} />
           </button>
         </div>
       </div>
@@ -390,37 +380,22 @@ export function SessionPanel({
                     >
                       {project.sessions.length}
                     </span>
-                    <button
+                    <div
                       onClick={(e) => {
                         e.stopPropagation();
                         onNewSessionInProject(project.cwd, project.name);
                       }}
                       style={{
-                        background: "none",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-sm)",
                         color: "var(--text-muted)",
                         cursor: "pointer",
-                        width: 22,
-                        height: 22,
+                        flexShrink: 0,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.8rem",
-                        flexShrink: 0,
-                        transition: "color 150ms, border-color 150ms",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-primary)";
-                        e.currentTarget.style.borderColor = "var(--text-muted)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                        e.currentTarget.style.borderColor = "var(--border)";
+                        transition: "color 150ms",
                       }}
                     >
-                      +
-                    </button>
+                      <PlusIcon size={16} />
+                    </div>
                   </div>
 
                   {/* Sessions under this project */}
