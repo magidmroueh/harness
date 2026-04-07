@@ -1,8 +1,12 @@
-import { Session } from "../types";
+import { useRef, useState, useEffect } from "react";
+import { Session, IconHandle } from "../types";
+import { TerminalIcon } from "./icons";
 
 interface Props {
   session: Session | null;
   unreadCount?: number;
+  bottomTerminalOpen?: boolean;
+  onToggleBottomTerminal?: () => void;
 }
 
 function formatDuration(startedAt: number): string {
@@ -20,7 +24,38 @@ function shortenPath(p: string): string {
   return p;
 }
 
-export function StatusBar({ session, unreadCount = 0 }: Props) {
+export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false, onToggleBottomTerminal }: Props) {
+  const termIconRef = useRef<IconHandle>(null);
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.cwd) { setGitBranch(null); return; }
+    window.api.git.branch(session.cwd).then(setGitBranch);
+    const interval = setInterval(() => {
+      window.api.git.branch(session.cwd).then(setGitBranch);
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [session?.cwd]);
+
+  const toggleButton = (
+    <div
+      onClick={onToggleBottomTerminal}
+      onMouseEnter={() => termIconRef.current?.startAnimation()}
+      onMouseLeave={() => termIconRef.current?.stopAnimation()}
+      data-tooltip="⌘J"
+      style={{
+        color: bottomTerminalOpen ? "var(--text-primary)" : "var(--text-muted)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        transition: "color 150ms",
+        marginRight: 8,
+      }}
+    >
+      <TerminalIcon ref={termIconRef} size={14} />
+    </div>
+  );
+
   if (!session) {
     return (
       <div
@@ -36,6 +71,7 @@ export function StatusBar({ session, unreadCount = 0 }: Props) {
           fontFamily: "var(--font-mono)",
         }}
       >
+        {toggleButton}
         No active session
       </div>
     );
@@ -56,8 +92,9 @@ export function StatusBar({ session, unreadCount = 0 }: Props) {
         fontFamily: "var(--font-mono)",
       }}
     >
+      {toggleButton}
       <span>{shortenPath(session.cwd)}</span>
-      <span style={{ color: "var(--dot-current)" }}>⌥ {session.branch}</span>
+      <span style={{ color: "var(--dot-current)" }}>⌥ {gitBranch || session.branch}</span>
       <span>{session.model.split(" ")[0]}</span>
       <span style={{ marginLeft: "auto" }}>{formatDuration(session.startedAt)}</span>
       <span>&lt;${session.cost.toFixed(2)}</span>

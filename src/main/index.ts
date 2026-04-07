@@ -164,6 +164,19 @@ ipcMain.handle("sessions:list-all", () => sessions.listAll());
 ipcMain.handle("sessions:delete", (_, opts) => sessions.delete(opts));
 ipcMain.handle("sessions:detect-pm", (_, { cwd }) => detectPackageManager(cwd));
 
+ipcMain.handle("git:branch", async (_, { cwd }: { cwd: string }) => {
+  try {
+    const { execFile } = require("child_process");
+    return new Promise<string>((resolve) => {
+      execFile("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd }, (err: Error | null, stdout: string) => {
+        resolve(err ? "—" : stdout.trim());
+      });
+    });
+  } catch {
+    return "—";
+  }
+});
+
 // --- Worktree IPC ---
 
 ipcMain.handle("worktrees:list", (_, { cwd }) => worktrees.list(cwd));

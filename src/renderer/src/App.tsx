@@ -12,6 +12,7 @@ import { WorktreePanel } from "./components/WorktreePanel";
 import { StatusBar } from "./components/StatusBar";
 import { NewSessionDialog } from "./components/NewSessionDialog";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { BottomTerminal } from "./components/BottomTerminal";
 
 interface SplitPane {
   id: string;
@@ -30,6 +31,7 @@ export function App() {
   const [splitPane, setSplitPane] = useState<SplitPane | null>(null);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [showNewSession, setShowNewSession] = useState(false);
+  const [showBottomTerminal, setShowBottomTerminal] = useState(false);
   const [showWorktrees, setShowWorktrees] = useState(false);
 
   const terminalsRef = useRef(terminals);
@@ -181,6 +183,11 @@ export function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (!e.metaKey) return;
+      if (e.key === "j") {
+        e.preventDefault();
+        setShowBottomTerminal((prev) => !prev);
+        return;
+      }
       const terms = terminalsRef.current;
       if (e.key === "[" || e.key === "]") {
         e.preventDefault();
@@ -193,8 +200,8 @@ export function App() {
         if (idx < terms.length) setActiveTerminalId(terms[idx].terminalId);
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, []);
 
   return (
@@ -343,7 +350,17 @@ export function App() {
               </>
             )}
           </div>
-          <StatusBar session={activeSessionForStatus} unreadCount={unreadCount} />
+          <StatusBar
+            session={activeSessionForStatus}
+            unreadCount={unreadCount}
+            bottomTerminalOpen={showBottomTerminal}
+            onToggleBottomTerminal={() => setShowBottomTerminal((prev) => !prev)}
+          />
+          <BottomTerminal
+            isOpen={showBottomTerminal}
+            onToggle={() => setShowBottomTerminal(false)}
+            theme={theme}
+          />
         </div>
 
         {/* Right sidebar */}
