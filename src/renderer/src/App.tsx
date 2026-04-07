@@ -36,8 +36,6 @@ export function App() {
 
   const terminalsRef = useRef(terminals);
   terminalsRef.current = terminals;
-  const activeTerminalIdRef = useRef(activeTerminalId);
-  activeTerminalIdRef.current = activeTerminalId;
 
   const handleFocusTerminal = useCallback((terminalId: string) => {
     if (terminalsRef.current.some((t) => t.terminalId === terminalId)) {
@@ -186,18 +184,6 @@ export function App() {
       if (e.key === "j") {
         e.preventDefault();
         setShowBottomTerminal((prev) => !prev);
-        return;
-      }
-      const terms = terminalsRef.current;
-      if (e.key === "[" || e.key === "]") {
-        e.preventDefault();
-        const idx = terms.findIndex((t) => t.terminalId === activeTerminalIdRef.current);
-        const next = e.key === "[" ? idx - 1 : idx + 1;
-        if (next >= 0 && next < terms.length) setActiveTerminalId(terms[next].terminalId);
-      }
-      if (e.key >= "0" && e.key <= "9") {
-        const idx = e.key === "0" ? 9 : parseInt(e.key) - 1;
-        if (idx < terms.length) setActiveTerminalId(terms[idx].terminalId);
       }
     };
     window.addEventListener("keydown", handler, true);

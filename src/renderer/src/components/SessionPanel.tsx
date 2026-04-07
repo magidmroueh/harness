@@ -636,7 +636,6 @@ export function SessionPanel({
         )}
       </div>
 
-      {/* Keyboard hints */}
       <div
         style={{
           padding: "8px 16px",
@@ -650,9 +649,7 @@ export function SessionPanel({
         }}
       >
         <span>⌘F Search</span>
-        <span>⌘0-9 Jump</span>
-        <span>⌘[ Prev</span>
-        <span>⌘] Next</span>
+        <span>⌘J Terminal</span>
       </div>
 
       {/* Delete confirmation popup */}

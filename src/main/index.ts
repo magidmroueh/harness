@@ -76,7 +76,7 @@ function createWindow(): void {
 
 ipcMain.handle(
   "terminal:create",
-  (_, { id, cwd, cmd, args }: { id: string; cwd?: string; cmd?: string; args?: string[] }) => {
+  (_, { id, cwd, cmd, args, cols, rows }: { id: string; cwd?: string; cmd?: string; args?: string[]; cols?: number; rows?: number }) => {
     if (!pty) return { error: "node-pty not available. Run: npm run rebuild" };
 
     const shell = cmd || process.env.SHELL || "/bin/zsh";
@@ -85,9 +85,14 @@ ipcMain.handle(
     const p = pty.spawn(shell, shellArgs, {
       name: "xterm-256color",
       cwd: cwd || process.env.HOME || "/",
-      env: { ...process.env } as Record<string, string>,
-      cols: 80,
-      rows: 24,
+      env: {
+        ...process.env,
+        COLORTERM: "truecolor",
+        TERM_PROGRAM: "Harness",
+        TERM_PROGRAM_VERSION: app.getVersion(),
+      } as Record<string, string>,
+      cols: cols || 80,
+      rows: rows || 24,
     });
 
     ptys.set(id, p);
@@ -158,6 +163,8 @@ ipcMain.handle("dialog:open-folder", async () => {
 });
 
 // --- Session IPC ---
+
+ipcMain.handle("app:version", () => app.getVersion());
 
 ipcMain.handle("sessions:discover", () => sessions.discover());
 ipcMain.handle("sessions:list-all", () => sessions.listAll());
