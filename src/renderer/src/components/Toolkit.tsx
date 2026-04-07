@@ -47,10 +47,10 @@ function buildGroups(pm: PM): ActionGroup[] {
     {
       label: "Claude",
       actions: [
-        { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "/pr" },
-        { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "/commit" },
-        { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "/diff" },
-        { id: "simplify", label: "Simplify", IconComponent: SparklesIcon, mode: "claude", command: "/simplify" },
+        { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "create a pull request for my changes" },
+        { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "commit all my changes and push to remote" },
+        { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "show me a summary of all changes I've made" },
+        { id: "simplify", label: "Simplify", IconComponent: SparklesIcon, mode: "claude", command: "review the code I changed for simplicity and clean it up" },
         { id: "review", label: "Review Changes", IconComponent: ShieldCheckIcon, mode: "claude", command: "review my recent changes and suggest improvements" },
         { id: "explain", label: "Explain Code", IconComponent: BookTextIcon, mode: "claude", command: "explain the architecture of this project" },
       ],

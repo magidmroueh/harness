@@ -58,9 +58,6 @@ The app polls every 5 seconds (via TanStack Query), detects which PIDs are alive
 |-----|--------|
 | `Cmd+J` | Toggle bottom terminal panel |
 | `Cmd+F` | Search / filter sessions |
-| `Cmd+1` -- `Cmd+9` | Jump to terminal by index |
-| `Cmd+[` | Previous terminal |
-| `Cmd+]` | Next terminal |
 
 ---
 
