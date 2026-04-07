@@ -46,6 +46,9 @@ const api = {
     onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string; hasUpdate: boolean; releaseUrl: string; releaseNotes: string; publishedAt: string }) => void) =>
       onIpc("updater:update-available", cb),
   },
+  git: {
+    branch: (cwd: string) => ipcRenderer.invoke("git:branch", { cwd }) as Promise<string>,
+  },
   dialog: {
     openFolder: () => ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,
   },

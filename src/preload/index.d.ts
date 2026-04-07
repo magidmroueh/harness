@@ -85,6 +85,9 @@ export interface HarnessAPI {
       publishedAt: string;
     }) => void) => () => void;
   };
+  git: {
+    branch: (cwd: string) => Promise<string>;
+  };
   dialog: {
     openFolder: () => Promise<string | null>;
   };

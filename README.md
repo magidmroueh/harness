@@ -56,6 +56,7 @@ The app polls every 5 seconds (via TanStack Query), detects which PIDs are alive
 
 | Key | Action |
 |-----|--------|
+| `Cmd+J` | Toggle bottom terminal panel |
 | `Cmd+F` | Search / filter sessions |
 | `Cmd+1` -- `Cmd+9` | Jump to terminal by index |
 | `Cmd+[` | Previous terminal |
@@ -152,13 +153,14 @@ src/
         │   └── useNotificationSound.ts  Audio chime
         └── components/
             ├── SessionPanel.tsx     Accordion by project, session list, search
-            ├── TerminalView.tsx     xterm.js + PTY bridge, theme support
-            ├── Toolkit.tsx          Action grid (claude + shell + ui modes)
+            ├── TerminalView.tsx     xterm.js + PTY bridge, theme + Nerd Font support
+            ├── BottomTerminal.tsx   Tabbed general-purpose terminal panel
+            ├── Toolkit.tsx          Grouped action grid (claude + shell + tools)
             ├── ToolkitAction.tsx    Single action with animated icon
             ├── WorktreePanel.tsx    Git worktree overlay
             ├── NotificationPanel.tsx Notification list
             ├── UpdateBanner.tsx     Update notification banner
-            ├── StatusBar.tsx        cwd, branch, model, cost
+            ├── StatusBar.tsx        cwd, git branch (live), model, terminal toggle
             ├── TitleBar.tsx         Logo, title, theme toggle
             ├── NewSessionDialog.tsx Folder picker
             └── icons/              Animated Lucide icons (motion/react)

@@ -75,7 +75,7 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
 
     const term = new Terminal({
       theme: theme === "dark" ? DARK_THEME : LIGHT_THEME,
-      fontFamily: "'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace",
+      fontFamily: "'MesloLGS Nerd Font', 'MesloLGS NF', 'Hack Nerd Font', 'FiraCode Nerd Font', 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Menlo', monospace",
       fontSize: 13,
       lineHeight: 1.4,
       cursorBlink: true,
@@ -124,15 +124,19 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
         });
 
         // Auto-run command after shell is ready
+        // shellCommand === undefined → launch claude; "" → plain shell; "cmd" → run cmd
         setTimeout(() => {
           if (disposed) return;
-          if (shellCommand) {
+          if (shellCommand !== undefined && shellCommand !== "") {
             window.api.terminal.write(sessionId, shellCommand + "\n");
-          } else if (resumeSessionId) {
-            window.api.terminal.write(sessionId, `claude --resume ${resumeSessionId}\n`);
-          } else {
-            window.api.terminal.write(sessionId, "claude\n");
+          } else if (shellCommand === undefined) {
+            if (resumeSessionId) {
+              window.api.terminal.write(sessionId, `claude --resume ${resumeSessionId}\n`);
+            } else {
+              window.api.terminal.write(sessionId, "claude\n");
+            }
           }
+          // shellCommand === "" → plain shell, do nothing
         }, 600);
 
         cleanupRef.current = () => {
