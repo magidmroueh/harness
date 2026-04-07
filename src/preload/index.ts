@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+function onIpc<T>(channel: string, cb: (payload: T) => void): () => void {
+  const handler = (_: unknown, payload: T) => cb(payload);
+  ipcRenderer.on(channel, handler);
+  return () => { ipcRenderer.removeListener(channel, handler); };
+}
+
 const api = {
   terminal: {
     create: (opts: { id: string; cwd?: string; cmd?: string; args?: string[] }) =>
@@ -8,20 +14,8 @@ const api = {
     resize: (id: string, cols: number, rows: number) =>
       ipcRenderer.invoke("terminal:resize", { id, cols, rows }),
     kill: (id: string) => ipcRenderer.invoke("terminal:kill", { id }),
-    onData: (id: string, cb: (data: string) => void) => {
-      const handler = (_: unknown, data: string) => cb(data);
-      ipcRenderer.on(`terminal:data:${id}`, handler);
-      return () => {
-        ipcRenderer.removeListener(`terminal:data:${id}`, handler);
-      };
-    },
-    onExit: (id: string, cb: (code: number) => void) => {
-      const handler = (_: unknown, code: number) => cb(code);
-      ipcRenderer.on(`terminal:exit:${id}`, handler);
-      return () => {
-        ipcRenderer.removeListener(`terminal:exit:${id}`, handler);
-      };
-    },
+    onData: (id: string, cb: (data: string) => void) => onIpc(`terminal:data:${id}`, cb),
+    onExit: (id: string, cb: (code: number) => void) => onIpc(`terminal:exit:${id}`, cb),
   },
   sessions: {
     discover: () => ipcRenderer.invoke("sessions:discover"),
@@ -39,18 +33,18 @@ const api = {
       ipcRenderer.invoke("worktrees:remove", opts),
   },
   notifications: {
-    onAttention: (cb: (event: { id: string; terminalId: string; type: string; summary: string; timestamp: number }) => void) => {
-      const handler = (_: unknown, event: Parameters<typeof cb>[0]) => cb(event);
-      ipcRenderer.on("notification:attention", handler);
-      return () => { ipcRenderer.removeListener("notification:attention", handler); };
-    },
-    onFocusTerminal: (cb: (terminalId: string) => void) => {
-      const handler = (_: unknown, terminalId: string) => cb(terminalId);
-      ipcRenderer.on("notification:focus-terminal", handler);
-      return () => { ipcRenderer.removeListener("notification:focus-terminal", handler); };
-    },
+    onAttention: (cb: (event: { id: string; terminalId: string; type: string; summary: string; timestamp: number }) => void) =>
+      onIpc("notification:attention", cb),
+    onFocusTerminal: (cb: (terminalId: string) => void) =>
+      onIpc("notification:focus-terminal", cb),
     suppress: (id: string) => ipcRenderer.invoke("notification:suppress", { id }),
     unsuppress: (id: string) => ipcRenderer.invoke("notification:unsuppress", { id }),
+  },
+  updater: {
+    check: () => ipcRenderer.invoke("updater:check"),
+    openRelease: (url: string) => ipcRenderer.invoke("updater:open-release", { url }),
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string; hasUpdate: boolean; releaseUrl: string; releaseNotes: string; publishedAt: string }) => void) =>
+      onIpc("updater:update-available", cb),
   },
   dialog: {
     openFolder: () => ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,

@@ -11,6 +11,7 @@ import { Toolkit } from "./components/Toolkit";
 import { WorktreePanel } from "./components/WorktreePanel";
 import { StatusBar } from "./components/StatusBar";
 import { NewSessionDialog } from "./components/NewSessionDialog";
+import { UpdateBanner } from "./components/UpdateBanner";
 
 interface SplitPane {
   id: string;
@@ -209,6 +210,7 @@ export function App() {
       }}
     >
       <TitleBar theme={theme} onToggleTheme={toggleTheme} />
+      <UpdateBanner />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Terminal area */}

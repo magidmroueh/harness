@@ -4,15 +4,27 @@ Desktop manager for Claude Code. Discover sessions, resume conversations, run co
 
 ![Harness](screenshot.png)
 
-## Quick Start
+## Install
 
-```
-bun install
-bun run rebuild
-bun run dev
+```bash
+curl -fsSL https://raw.githubusercontent.com/magidmroueh/harness/main/install.sh | bash
 ```
 
-Requires [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude` in your PATH) and Node.js 18+.
+Downloads the latest release, mounts the DMG, and copies Harness to `/Applications`. Supports both Apple Silicon and Intel Macs.
+
+Or download the DMG directly from [Releases](https://github.com/magidmroueh/harness/releases).
+
+**Requirements:** macOS 14+ and [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude` in your PATH).
+
+### Updates
+
+Harness checks for updates automatically on launch (and every 4 hours). When a new version is available, a banner appears at the top of the app. You can also check manually from the Toolkit.
+
+To update via terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/magidmroueh/harness/main/install.sh | bash
+```
 
 ## What This Is
 
@@ -22,7 +34,10 @@ Every time you run `claude` in a terminal, it creates a session file in `~/.clau
 - Start fresh sessions in any project
 - Run tests, builds, dev servers in a split pane (auto-detects npm/yarn/pnpm/bun)
 - Manage git worktrees for parallel work
-- Send Claude commands from the toolkit (create PR, commit, review code)
+- Send Claude commands from the toolkit (create PR, commit, review code, show changes)
+- Get notified when Claude finishes or needs input (badges, desktop notifications, sound)
+- Search and filter sessions with Cmd+F
+- Toggle light/dark theme
 
 ## How It Works
 
@@ -37,7 +52,41 @@ Every time you run `claude` in a terminal, it creates a session file in `~/.clau
 
 The app polls every 5 seconds (via TanStack Query), detects which PIDs are alive, and merges running + past sessions into the sidebar.
 
-## Architecture
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Cmd+F` | Search / filter sessions |
+| `Cmd+1` -- `Cmd+9` | Jump to terminal by index |
+| `Cmd+[` | Previous terminal |
+| `Cmd+]` | Next terminal |
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/magidmroueh/harness.git
+cd harness
+bun install
+bun run rebuild    # rebuild native modules (node-pty) for Electron
+bun run dev        # dev mode with HMR
+```
+
+### Scripts
+
+| Script | What it does |
+|--------|-------------|
+| `bun run dev` | Dev mode with hot reload |
+| `bun run build` | Production build |
+| `bun run start` | Run production build |
+| `bun run rebuild` | Rebuild native modules for Electron |
+| `bun run pack` | Package .app locally (no installer) |
+| `bun run dist` | Build DMG + ZIP for distribution |
+| `bun run lint` | Run oxlint |
+| `bun run fmt` | Format with oxfmt |
+
+### Architecture
 
 ```
 Electron main process          Renderer (React)
@@ -45,7 +94,8 @@ Electron main process          Renderer (React)
 │ node-pty (PTY mgmt) │◄──IPC──►│ xterm.js + WebGL (terminal) │
 │ SessionManager      │◄──IPC──►│ TanStack Query (sessions)   │
 │ WorktreeManager     │◄──IPC──►│ React components (UI)       │
-│ dialog (folder pick)│◄──IPC──►│ CSS custom properties       │
+│ AttentionDetector   │◄──IPC──►│ Notification system         │
+│ Updater             │◄──IPC──►│ Update banner               │
 └─────────────────────┘        └──────────────────────────────┘
 ```
 
@@ -57,10 +107,25 @@ Electron main process          Renderer (React)
 | UI | React 18 + TypeScript |
 | Data | TanStack Query (polling, cache, optimistic updates) |
 | Terminal | xterm.js + WebGL addon + node-pty |
-| Build | electron-vite (Vite for renderer, SSR for main/preload) |
+| Icons | Animated Lucide icons via motion/react |
+| Build | electron-vite + electron-builder |
 | Package manager | Bun |
 | Linting | oxlint + oxfmt |
 | Styling | CSS custom properties (no framework) |
+
+### Releasing
+
+Releases are automated. Every push to `main` triggers a GitHub Actions workflow that:
+
+1. Builds the app
+2. Packages DMG + ZIP for macOS
+3. Creates a GitHub Release with the artifacts
+
+To bump the version before merging:
+
+```bash
+# Edit version in package.json, then merge to main
+```
 
 ### Project Layout
 
@@ -69,7 +134,9 @@ src/
 ├── main/
 │   ├── index.ts           IPC handlers, PTY spawn, window setup
 │   ├── sessions.ts        Read ~/.claude/, detect package managers
-│   └── worktrees.ts       git worktree list/create/remove
+│   ├── worktrees.ts       git worktree list/create/remove
+│   ├── notifications.ts   Terminal attention detection (idle + patterns)
+│   └── updater.ts         GitHub release version checker
 ├── preload/
 │   ├── index.ts           contextBridge API
 │   └── index.d.ts         TypeScript types for window.api
@@ -79,47 +146,22 @@ src/
         ├── types.ts        Session, TerminalInstance, ToolkitAction
         ├── tokens.css      Design tokens (stone palette, dark/light)
         ├── hooks/
-        │   ├── useSessions.ts   TanStack Query hooks
-        │   └── useTheme.ts      Dark/light toggle
+        │   ├── useSessions.ts       TanStack Query hooks
+        │   ├── useTheme.ts          Dark/light toggle
+        │   ├── useNotifications.ts  Attention event state
+        │   └── useNotificationSound.ts  Audio chime
         └── components/
-            ├── SessionPanel.tsx     Accordion by project, session list
-            ├── TerminalView.tsx     xterm.js + PTY bridge
-            ├── Toolkit.tsx          Action grid (claude + shell modes)
+            ├── SessionPanel.tsx     Accordion by project, session list, search
+            ├── TerminalView.tsx     xterm.js + PTY bridge, theme support
+            ├── Toolkit.tsx          Action grid (claude + shell + ui modes)
+            ├── ToolkitAction.tsx    Single action with animated icon
             ├── WorktreePanel.tsx    Git worktree overlay
+            ├── NotificationPanel.tsx Notification list
+            ├── UpdateBanner.tsx     Update notification banner
             ├── StatusBar.tsx        cwd, branch, model, cost
-            ├── TitleBar.tsx         Frameless drag region
-            └── NewSessionDialog.tsx Folder picker
-```
-
-## Toolkit
-
-Actions are color-coded by type:
-
-| Dot | Type | What happens |
-|-----|------|-------------|
-| Yellow | Claude | Writes into the active Claude session (`/pr`, `/commit`, natural language) |
-| Green | Shell | Opens a split pane and runs the command (`bun test`, `git status`) |
-| Gray | UI | Opens an internal panel (worktree manager) |
-
-Shell commands auto-detect the project's package manager from lockfiles.
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Cmd+1` -- `Cmd+9` | Jump to terminal by index |
-| `Cmd+[` | Previous terminal |
-| `Cmd+]` | Next terminal |
-
-## Scripts
-
-```
-bun run dev          Dev mode with HMR
-bun run build        Production build
-bun run start        Run production build
-bun run rebuild      Rebuild native modules for Electron
-bun run lint         Run oxlint
-bun run fmt          Format with oxfmt
+            ├── TitleBar.tsx         Logo, title, theme toggle
+            ├── NewSessionDialog.tsx Folder picker
+            └── icons/              Animated Lucide icons (motion/react)
 ```
 
 ## License

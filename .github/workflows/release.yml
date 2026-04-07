@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "*.md"
+      - ".github/workflows/**"
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Rebuild native modules
+        run: bun run rebuild
+
+      - name: Build app
+        run: bun run build
+
+      - name: Package for macOS
+        run: bun run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Harness v${{ steps.version.outputs.version }}
+          body: |
+            ## Harness v${{ steps.version.outputs.version }}
+
+            ### Install
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/magidmroueh/harness/main/install.sh | bash
+            ```
+
+            Or download the DMG below.
+          files: |
+            dist/*.dmg
+            dist/*.zip
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
