@@ -27,6 +27,11 @@ function shortenPath(p: string): string {
 export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false, onToggleBottomTerminal }: Props) {
   const termIconRef = useRef<IconHandle>(null);
   const [gitBranch, setGitBranch] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    window.api.getVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     if (!session?.cwd) { setGitBranch(null); return; }
@@ -42,7 +47,7 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
       onClick={onToggleBottomTerminal}
       onMouseEnter={() => termIconRef.current?.startAnimation()}
       onMouseLeave={() => termIconRef.current?.stopAnimation()}
-      data-tooltip="⌘J"
+      data-tooltip="Terminal (⌘J)"
       style={{
         color: bottomTerminalOpen ? "var(--text-primary)" : "var(--text-muted)",
         cursor: "pointer",
@@ -54,6 +59,15 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
     >
       <TerminalIcon ref={termIconRef} size={14} />
     </div>
+  );
+
+  const versionBadge = appVersion && (
+    <span
+      data-tooltip="App version"
+      style={{ color: "var(--text-muted)", fontSize: "0.68rem" }}
+    >
+      v{appVersion}
+    </span>
   );
 
   if (!session) {
@@ -73,6 +87,7 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
       >
         {toggleButton}
         No active session
+        <span style={{ marginLeft: "auto" }}>{versionBadge}</span>
       </div>
     );
   }
@@ -93,13 +108,18 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
       }}
     >
       {toggleButton}
-      <span>{shortenPath(session.cwd)}</span>
-      <span style={{ color: "var(--dot-current)" }}>⌥ {gitBranch || session.branch}</span>
-      <span>{session.model.split(" ")[0]}</span>
-      <span style={{ marginLeft: "auto" }}>{formatDuration(session.startedAt)}</span>
-      <span>&lt;${session.cost.toFixed(2)}</span>
+      <span data-tooltip="Working directory">{shortenPath(session.cwd)}</span>
+      <span data-tooltip="Git branch" style={{ color: "var(--dot-current)" }}>
+        ⌥ {gitBranch || session.branch}
+      </span>
+      <span data-tooltip="Model">{session.model.split(" ")[0]}</span>
+      <span data-tooltip="Session duration" style={{ marginLeft: "auto" }}>
+        {formatDuration(session.startedAt)}
+      </span>
+      <span data-tooltip="Estimated cost">&lt;${session.cost.toFixed(2)}</span>
       {unreadCount > 0 && (
         <span
+          data-tooltip="Unread notifications"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -120,6 +140,7 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
           {unreadCount}
         </span>
       )}
+      {versionBadge}
     </div>
   );
 }

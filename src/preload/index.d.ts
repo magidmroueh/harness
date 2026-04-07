@@ -37,6 +37,8 @@ export interface HarnessAPI {
       cwd?: string;
       cmd?: string;
       args?: string[];
+      cols?: number;
+      rows?: number;
     }) => Promise<{ pid?: number; error?: string }>;
     write: (id: string, data: string) => Promise<void>;
     resize: (id: string, cols: number, rows: number) => Promise<void>;
@@ -94,6 +96,7 @@ export interface HarnessAPI {
   dialog: {
     openFolder: () => Promise<string | null>;
   };
+  getVersion: () => Promise<string>;
   platform: string;
   homeDir: string;
 }

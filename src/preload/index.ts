@@ -53,6 +53,7 @@ const api = {
   dialog: {
     openFolder: () => ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,
   },
+  getVersion: () => ipcRenderer.invoke("app:version") as Promise<string>,
   platform: process.platform,
   homeDir: process.env.HOME || (process.env.USER ? `/Users/${process.env.USER}` : "/"),
 };
