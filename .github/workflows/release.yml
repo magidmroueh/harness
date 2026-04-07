@@ -16,10 +16,33 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Determine version
+        id: version
+        run: |
+          BASE=$(node -p 'require("./package.json").version')
+          MAJOR=$(echo "$BASE" | cut -d. -f1)
+          MINOR=$(echo "$BASE" | cut -d. -f2)
+          # Find the latest tag matching this major.minor and increment patch
+          LATEST_TAG=$(git tag -l "v${MAJOR}.${MINOR}.*" --sort=-v:refname | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            PATCH=0
+          else
+            LATEST_PATCH=$(echo "$LATEST_TAG" | sed "s/v${MAJOR}\.${MINOR}\.\(.*\)/\1/")
+            PATCH=$((LATEST_PATCH + 1))
+          fi
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Releasing v${VERSION}"
+
+      - name: Set version in package.json
+        run: node -e "const p=require('./package.json');p.version='${{ steps.version.outputs.version }}';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -35,18 +58,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get version
-        id: version
-        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Harness v${{ steps.version.outputs.version }}
+          generate_release_notes: true
           body: |
-            ## Harness v${{ steps.version.outputs.version }}
-
             ### Install
 
             ```bash
