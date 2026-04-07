@@ -46,7 +46,7 @@ export interface TerminalInstance {
   resumeSessionId?: string; // set only when resuming an existing session
 }
 
-export type PanelTab = "sessions" | "notifications" | "activity";
+export type PanelTab = "sessions" | "activity";
 
 export interface AttentionEvent {
   id: string;

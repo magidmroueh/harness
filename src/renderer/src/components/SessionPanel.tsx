@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Session, TerminalInstance, PanelTab, ActivityEvent, AttentionEvent, IconHandle } from "../types";
+import { Session, TerminalInstance, PanelTab, ActivityEvent, IconHandle } from "../types";
 import { timeAgo } from "../utils/time";
-import { NotificationPanel } from "./NotificationPanel";
 import { SearchIcon, PlusIcon } from "./icons";
 
 interface Props {
@@ -9,45 +8,13 @@ interface Props {
   terminals: TerminalInstance[];
   activeTerminalId: string | null;
   activity: ActivityEvent[];
-  notifications: AttentionEvent[];
   unreadByTerminal: Map<string, number>;
-  unreadCount: number;
-  terminalNames: Map<string, string>;
-  onDismissNotification: (id: string) => void;
-  onClearNotifications: () => void;
   onResumeSession: (session: Session) => void;
   onSelectTerminal: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
   onDeleteSession: (session: Session) => void;
   onNewSession: () => void;
   onNewSessionInProject: (cwd: string, name: string) => void;
-}
-
-function Badge({ count, size = "md", pulse = false }: { count: number; size?: "sm" | "md"; pulse?: boolean }) {
-  const dim = size === "sm" ? 14 : 16;
-  const font = size === "sm" ? "0.55rem" : "0.6rem";
-  const pad = size === "sm" ? "0 4px" : "0 5px";
-  return (
-    <span
-      style={{
-        background: "var(--dot-working)",
-        color: "#000",
-        fontSize: font,
-        fontWeight: 700,
-        borderRadius: "var(--radius-full)",
-        padding: pad,
-        minWidth: dim,
-        height: dim,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        lineHeight: 1,
-        animation: pulse ? "pulse 2s infinite" : undefined,
-      }}
-    >
-      {count}
-    </span>
-  );
 }
 
 interface ProjectGroup {
@@ -62,12 +29,7 @@ export function SessionPanel({
   terminals,
   activeTerminalId,
   activity,
-  notifications,
   unreadByTerminal,
-  unreadCount,
-  terminalNames,
-  onDismissNotification,
-  onClearNotifications,
   onResumeSession,
   onSelectTerminal,
   onCloseTerminal,
@@ -166,7 +128,7 @@ export function SessionPanel({
         }}
       >
         <div style={{ display: "flex", gap: 16 }}>
-          {(["sessions", "notifications", "activity"] as PanelTab[]).map((t) => (
+          {(["sessions", "activity"] as PanelTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -181,15 +143,9 @@ export function SessionPanel({
                 textTransform: "capitalize",
                 transition: "color 150ms",
                 fontFamily: "var(--font-sans)",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
               }}
             >
-              {t === "notifications" ? "alerts" : t}
-              {t === "notifications" && unreadCount > 0 && (
-                <Badge count={unreadCount} />
-              )}
+              {t}
             </button>
           ))}
         </div>
@@ -407,6 +363,7 @@ export function SessionPanel({
                         (t) => t.resumeSessionId === session.sessionId,
                       );
                       const isActiveTerminal = attachedTerminal?.terminalId === activeTerminalId;
+                      const hasUnread = attachedTerminal != null && (unreadByTerminal.get(attachedTerminal.terminalId) || 0) > 0;
 
                       return (
                         <div
@@ -459,13 +416,21 @@ export function SessionPanel({
                                 borderRadius: "50%",
                                 flexShrink: 0,
                                 backgroundColor:
-                                  session.status === "active"
-                                    ? "var(--dot-current)"
-                                    : "var(--dot-past)",
+                                  hasUnread
+                                    ? "var(--dot-working)"
+                                    : session.status === "active"
+                                      ? "var(--dot-current)"
+                                      : "var(--dot-past)",
                                 boxShadow:
-                                  session.status === "active"
-                                    ? "0 0 0 3px rgba(74,222,128,0.2)"
-                                    : "none",
+                                  hasUnread
+                                    ? "0 0 0 3px rgba(251,191,36,0.3)"
+                                    : session.status === "active"
+                                      ? "0 0 0 3px rgba(74,222,128,0.2)"
+                                      : "none",
+                                animation:
+                                  hasUnread
+                                    ? "pulse 2s infinite"
+                                    : undefined,
                               }}
                             />
                             <span
@@ -506,16 +471,6 @@ export function SessionPanel({
                                 attached
                               </span>
                             )}
-                            {attachedTerminal &&
-                              (unreadByTerminal.get(attachedTerminal.terminalId) || 0) > 0 && (
-                                <span style={{ marginLeft: isResumed ? 4 : "auto" }}>
-                                  <Badge
-                                    count={unreadByTerminal.get(attachedTerminal.terminalId)!}
-                                    size="sm"
-                                    pulse
-                                  />
-                                </span>
-                              )}
                             {attachedTerminal ? (
                               <button
                                 onClick={(e) => {
@@ -590,14 +545,6 @@ export function SessionPanel({
               );
             })
           )
-        ) : tab === "notifications" ? (
-          <NotificationPanel
-            notifications={notifications}
-            onDismiss={onDismissNotification}
-            onClearAll={onClearNotifications}
-            onSelectTerminal={onSelectTerminal}
-            terminalNames={terminalNames}
-          />
         ) : (
           <div style={{ padding: 16 }}>
             {activity.length === 0 ? (
