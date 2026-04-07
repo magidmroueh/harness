@@ -43,13 +43,7 @@ export function App() {
     }
   }, []);
 
-  const {
-    notifications,
-    unreadByTerminal,
-    unreadCount,
-    dismiss: dismissNotification,
-    clearAll: clearNotifications,
-  } = useNotifications(activeTerminalId, handleFocusTerminal);
+  const { unreadByTerminal, unreadCount } = useNotifications(activeTerminalId, handleFocusTerminal);
   useNotificationSound(unreadCount);
 
   const activeTerminal = terminals.find((t) => t.terminalId === activeTerminalId) || null;
@@ -157,7 +151,7 @@ export function App() {
       }
       addActivity("command_run", action.label);
     },
-    [activeTerminalId, activeTerminal, splitPane, addActivity],
+    [activeTerminalId, activeTerminal, addActivity],
   );
 
   const handleWorktreeSession = useCallback(
@@ -167,15 +161,6 @@ export function App() {
     },
     [handleNewSession],
   );
-
-  // Build terminal name map for notification panel
-  const terminalNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const t of terminals) {
-      map.set(t.terminalId, t.projectName);
-    }
-    return map;
-  }, [terminals]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -379,12 +364,7 @@ export function App() {
               terminals={terminals}
               activeTerminalId={activeTerminalId}
               activity={activity}
-              notifications={notifications}
               unreadByTerminal={unreadByTerminal}
-              unreadCount={unreadCount}
-              terminalNames={terminalNames}
-              onDismissNotification={dismissNotification}
-              onClearNotifications={clearNotifications}
               onResumeSession={handleResumeSession}
               onSelectTerminal={setActiveTerminalId}
               onCloseTerminal={handleCloseTerminal}

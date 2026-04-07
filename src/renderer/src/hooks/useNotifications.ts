@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { AttentionEvent } from "../types";
 
 const MAX_NOTIFICATIONS = 100;
@@ -24,7 +24,6 @@ export function useNotifications(
     });
   }, []);
 
-  // When active terminal changes, suppress/unsuppress and dismiss its notifications
   useEffect(() => {
     if (activeTerminalId) {
       window.api.notifications.suppress(activeTerminalId);
@@ -51,18 +50,6 @@ export function useNotifications(
     });
   }, []);
 
-  const dismiss = useCallback((id: string) => {
-    setNotifications((prev) => {
-      const target = prev.find((n) => n.id === id);
-      if (!target || target.dismissed) return prev;
-      return prev.map((n) => (n.id === id ? { ...n, dismissed: true } : n));
-    });
-  }, []);
-
-  const clearAll = useCallback(() => {
-    setNotifications([]);
-  }, []);
-
   const unreadByTerminal = useMemo(() => {
     const map = new Map<string, number>();
     for (const n of notifications) {
@@ -79,5 +66,5 @@ export function useNotifications(
     return total;
   }, [unreadByTerminal]);
 
-  return { notifications, unreadByTerminal, unreadCount, dismiss, clearAll };
+  return { unreadByTerminal, unreadCount };
 }
