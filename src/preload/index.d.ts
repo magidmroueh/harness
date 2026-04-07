@@ -66,6 +66,25 @@ export interface HarnessAPI {
     suppress: (id: string) => Promise<void>;
     unsuppress: (id: string) => Promise<void>;
   };
+  updater: {
+    check: () => Promise<{
+      currentVersion: string;
+      latestVersion: string;
+      hasUpdate: boolean;
+      releaseUrl: string;
+      releaseNotes: string;
+      publishedAt: string;
+    }>;
+    openRelease: (url: string) => Promise<void>;
+    onUpdateAvailable: (cb: (info: {
+      currentVersion: string;
+      latestVersion: string;
+      hasUpdate: boolean;
+      releaseUrl: string;
+      releaseNotes: string;
+      publishedAt: string;
+    }) => void) => () => void;
+  };
   dialog: {
     openFolder: () => Promise<string | null>;
   };

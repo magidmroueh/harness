@@ -5,9 +5,14 @@ import {
   GitPullRequestIcon,
   GitCommitIcon,
   EyeIcon,
-  TerminalIcon,
+  BookTextIcon,
   PlayIcon,
   GitBranchIcon,
+  SparklesIcon,
+  ShieldCheckIcon,
+  HammerIcon,
+  HistoryIcon,
+  CheckCheckIcon,
 } from "./icons";
 
 interface Props {
@@ -32,30 +37,68 @@ const testCmd: Record<PM, string> = {
   bun: "bun test",
 };
 
-function buildActions(pm: PM): ActionType[] {
+interface ActionGroup {
+  label: string;
+  actions: ActionType[];
+}
+
+function buildGroups(pm: PM): ActionGroup[] {
   return [
-    { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "/pr" },
-    { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "/commit" },
-    { id: "review", label: "Review Changes", IconComponent: EyeIcon, mode: "claude", command: "review my recent changes and suggest improvements" },
-    { id: "explain", label: "Explain Code", IconComponent: TerminalIcon, mode: "claude", command: "explain the architecture of this project" },
-    { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "/diff" },
-    { id: "dev-server", label: "Dev Server", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} dev` },
-    { id: "run-tests", label: "Run Tests", IconComponent: PlayIcon, mode: "shell", command: testCmd[pm] },
-    { id: "lint", label: "Lint", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} lint` },
-    { id: "build", label: "Build", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} build` },
-    { id: "git-status", label: "Git Status", IconComponent: GitCommitIcon, mode: "shell", command: "git status" },
-    { id: "git-log", label: "Git Log", IconComponent: GitCommitIcon, mode: "shell", command: "git log --oneline -10" },
-    { id: "worktree", label: "Worktree", IconComponent: GitBranchIcon, mode: "ui", command: "worktree" },
+    {
+      label: "Claude",
+      actions: [
+        { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "/pr" },
+        { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "/commit" },
+        { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "/diff" },
+        { id: "simplify", label: "Simplify", IconComponent: SparklesIcon, mode: "claude", command: "/simplify" },
+        { id: "review", label: "Review Changes", IconComponent: ShieldCheckIcon, mode: "claude", command: "review my recent changes and suggest improvements" },
+        { id: "explain", label: "Explain Code", IconComponent: BookTextIcon, mode: "claude", command: "explain the architecture of this project" },
+      ],
+    },
+    {
+      label: "Shell",
+      actions: [
+        { id: "dev-server", label: "Dev Server", IconComponent: PlayIcon, mode: "shell", command: `${runCmd[pm]} dev` },
+        { id: "run-tests", label: "Run Tests", IconComponent: CheckCheckIcon, mode: "shell", command: testCmd[pm] },
+        { id: "lint", label: "Lint", IconComponent: ShieldCheckIcon, mode: "shell", command: `${runCmd[pm]} lint` },
+        { id: "build", label: "Build", IconComponent: HammerIcon, mode: "shell", command: `${runCmd[pm]} build` },
+        { id: "git-status", label: "Git Status", IconComponent: GitCommitIcon, mode: "shell", command: "git status" },
+        { id: "git-log", label: "Git Log", IconComponent: HistoryIcon, mode: "shell", command: "git log --oneline -10" },
+      ],
+    },
+    {
+      label: "Tools",
+      actions: [
+        { id: "worktree", label: "Worktree", IconComponent: GitBranchIcon, mode: "ui", command: "worktree" },
+      ],
+    },
   ];
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        gridColumn: "1 / -1",
+        fontSize: "0.65rem",
+        fontWeight: 500,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: "var(--text-muted)",
+        padding: "6px 0 2px",
+      }}
+    >
+      {label}
+    </div>
+  );
 }
 
 export function Toolkit({ session, onRunAction, onShowWorktrees }: Props) {
   const pm = session?.packageManager || "npm";
-  const actions = useMemo(() => buildActions(pm), [pm]);
+  const groups = useMemo(() => buildGroups(pm), [pm]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Section header */}
       <div
         style={{
           display: "flex",
@@ -98,7 +141,6 @@ export function Toolkit({ session, onRunAction, onShowWorktrees }: Props) {
         )}
       </div>
 
-      {/* Action grid */}
       <div
         style={{
           flex: 1,
@@ -110,18 +152,23 @@ export function Toolkit({ session, onRunAction, onShowWorktrees }: Props) {
           alignContent: "start",
         }}
       >
-        {actions.map((action) => (
-          <ToolkitAction
-            key={action.id}
-            action={action}
-            onRun={() => {
-              if (action.mode === "ui" && action.command === "worktree") {
-                onShowWorktrees();
-              } else {
-                onRunAction(action);
-              }
-            }}
-          />
+        {groups.map((group) => (
+          <div key={group.label} style={{ display: "contents" }}>
+            <SectionLabel label={group.label} />
+            {group.actions.map((action) => (
+              <ToolkitAction
+                key={action.id}
+                action={action}
+                onRun={() => {
+                  if (action.mode === "ui" && action.command === "worktree") {
+                    onShowWorktrees();
+                  } else {
+                    onRunAction(action);
+                  }
+                }}
+              />
+            ))}
+          </div>
         ))}
       </div>
     </div>
