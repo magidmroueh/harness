@@ -74,8 +74,9 @@ export interface HarnessAPI {
       releaseUrl: string;
       releaseNotes: string;
       publishedAt: string;
+      dmgUrl: string;
     }>;
-    openRelease: (url: string) => Promise<void>;
+    install: (dmgUrl: string) => Promise<void>;
     onUpdateAvailable: (cb: (info: {
       currentVersion: string;
       latestVersion: string;
@@ -83,7 +84,9 @@ export interface HarnessAPI {
       releaseUrl: string;
       releaseNotes: string;
       publishedAt: string;
+      dmgUrl: string;
     }) => void) => () => void;
+    onProgress: (cb: (status: string) => void) => () => void;
   };
   git: {
     branch: (cwd: string) => Promise<string>;

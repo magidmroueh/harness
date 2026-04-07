@@ -42,9 +42,10 @@ const api = {
   },
   updater: {
     check: () => ipcRenderer.invoke("updater:check"),
-    openRelease: (url: string) => ipcRenderer.invoke("updater:open-release", { url }),
-    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string; hasUpdate: boolean; releaseUrl: string; releaseNotes: string; publishedAt: string }) => void) =>
+    install: (dmgUrl: string) => ipcRenderer.invoke("updater:install", { dmgUrl }),
+    onUpdateAvailable: (cb: (info: { currentVersion: string; latestVersion: string; hasUpdate: boolean; releaseUrl: string; releaseNotes: string; publishedAt: string; dmgUrl: string }) => void) =>
       onIpc("updater:update-available", cb),
+    onProgress: (cb: (status: string) => void) => onIpc("updater:progress", cb),
   },
   git: {
     branch: (cwd: string) => ipcRenderer.invoke("git:branch", { cwd }) as Promise<string>,

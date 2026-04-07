@@ -1,10 +1,10 @@
-import { app, BrowserWindow, Notification, Menu, ipcMain, dialog, nativeImage, shell } from "electron";
+import { app, BrowserWindow, Notification, Menu, ipcMain, dialog, nativeImage } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { SessionManager, detectPackageManager } from "./sessions";
 import { WorktreeManager } from "./worktrees";
 import { AttentionDetector } from "./notifications";
-import { checkForUpdates } from "./updater";
+import { checkForUpdates, downloadAndInstall } from "./updater";
 
 let pty: typeof import("node-pty") | null = null;
 try {
@@ -143,7 +143,7 @@ ipcMain.handle("notification:unsuppress", (_, { id }: { id: string }) => {
 // --- Updater IPC ---
 
 ipcMain.handle("updater:check", () => checkForUpdates());
-ipcMain.handle("updater:open-release", (_, { url }: { url: string }) => shell.openExternal(url));
+ipcMain.handle("updater:install", (_, { dmgUrl }: { dmgUrl: string }) => downloadAndInstall(dmgUrl, mainWindow));
 
 // --- Dialog IPC ---
 
