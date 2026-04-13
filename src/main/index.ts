@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { SessionManager, detectPackageManager } from "./sessions";
 import { WorktreeManager } from "./worktrees";
 import { AttentionDetector } from "./notifications";
+import { ConfigManager, type ConfigKind, type ConfigScope } from "./claudeConfig";
 import { checkForUpdates, downloadAndInstall } from "./updater";
 
 let pty: typeof import("node-pty") | null = null;
@@ -20,6 +21,7 @@ const worktrees = new WorktreeManager();
 let autoCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 let autoCheckInterval: ReturnType<typeof setInterval> | null = null;
 const detector = new AttentionDetector();
+const configManager = new ConfigManager();
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -47,6 +49,12 @@ function createWindow(): void {
       p.kill();
       ptys.delete(id);
     }
+  });
+
+  // Config: forward change events to renderer for re-fetching
+  configManager.on("changed", () => {
+    if (mainWindow?.isDestroyed()) return;
+    mainWindow?.webContents.send("config:changed");
   });
 
   // Notification: forward attention events to renderer + desktop notification
@@ -189,6 +197,66 @@ ipcMain.handle("git:branch", async (_, { cwd }: { cwd: string }) => {
 ipcMain.handle("worktrees:list", (_, { cwd }) => worktrees.list(cwd));
 ipcMain.handle("worktrees:create", (_, opts) => worktrees.create(opts));
 ipcMain.handle("worktrees:remove", (_, opts) => worktrees.remove(opts));
+
+// --- Config IPC ---
+
+ipcMain.handle("config:list", (_, { cwd }: { cwd: string | null }) => configManager.list(cwd));
+ipcMain.handle(
+  "config:read",
+  (
+    _,
+    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
+  ) => configManager.read(kind, scope, name, cwd),
+);
+ipcMain.handle(
+  "config:write",
+  (
+    _,
+    {
+      kind,
+      scope,
+      name,
+      cwd,
+      frontmatter,
+      body,
+    }: {
+      kind: ConfigKind;
+      scope: ConfigScope;
+      name: string;
+      cwd: string | null;
+      frontmatter: Record<string, unknown>;
+      body: string;
+    },
+  ) => configManager.write(kind, scope, name, cwd, frontmatter, body),
+);
+ipcMain.handle(
+  "config:create",
+  (
+    _,
+    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
+  ) => configManager.create(kind, scope, name, cwd),
+);
+ipcMain.handle(
+  "config:remove",
+  (
+    _,
+    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
+  ) => configManager.remove(kind, scope, name, cwd),
+);
+ipcMain.handle(
+  "config:reveal",
+  (
+    _,
+    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
+  ) => configManager.reveal(kind, scope, name, cwd),
+);
+ipcMain.handle(
+  "config:open-external",
+  (
+    _,
+    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
+  ) => configManager.openExternal(kind, scope, name, cwd),
+);
 
 // --- App Lifecycle ---
 

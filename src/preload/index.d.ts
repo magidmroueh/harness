@@ -30,6 +30,25 @@ export interface Worktree {
   isMain: boolean;
 }
 
+export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
+export type ConfigScope = "global" | "project";
+
+export interface ConfigEntry {
+  kind: ConfigKind;
+  scope: ConfigScope;
+  name: string;
+  path: string;
+  frontmatter: Record<string, unknown>;
+  description?: string;
+  hasResources?: boolean;
+  folderPath?: string;
+}
+
+export interface ConfigFileDetail extends ConfigEntry {
+  body: string;
+  resources?: string[];
+}
+
 export interface HarnessAPI {
   terminal: {
     create: (opts: {
@@ -92,6 +111,48 @@ export interface HarnessAPI {
   };
   git: {
     branch: (cwd: string) => Promise<string>;
+  };
+  config: {
+    list: (cwd: string | null) => Promise<ConfigEntry[]>;
+    read: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+    ) => Promise<ConfigFileDetail>;
+    write: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+      frontmatter: Record<string, unknown>,
+      body: string,
+    ) => Promise<void>;
+    create: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+    ) => Promise<ConfigFileDetail>;
+    remove: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+    ) => Promise<void>;
+    reveal: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+    ) => Promise<void>;
+    openExternal: (
+      kind: ConfigKind,
+      scope: ConfigScope,
+      name: string,
+      cwd: string | null,
+    ) => Promise<void>;
+    onChanged: (cb: () => void) => () => void;
   };
   dialog: {
     openFolder: () => Promise<string | null>;

@@ -6,9 +6,12 @@ export interface AttentionEvent {
   timestamp: number;
 }
 
+// Intentional control-character matching for ANSI/terminal stripping.
+/* eslint-disable no-control-regex */
 const ANSI_RE =
-  /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][AB012]|\x1b[>=<]|\x1b\[[\d;]*m|\x1b\[\?[\d;]*[hl]/g;
-const CONTROL_RE = /[\x00-\x08\x0b-\x1f]/g;
+  /\u001b\[[0-9;?]*[a-zA-Z]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[()][AB012]|\u001b[>=<]|\u001b\[[\d;]*m|\u001b\[\?[\d;]*[hl]/g;
+const CONTROL_RE = /[\u0000-\u0008\u000b-\u001f]/g;
+/* eslint-enable no-control-regex */
 
 function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "").replace(CONTROL_RE, "");
