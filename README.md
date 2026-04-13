@@ -34,6 +34,7 @@ Every time you run `claude` in a terminal, it creates a session file in `~/.clau
 - Start fresh sessions in any project
 - Run tests, builds, dev servers in a split pane (auto-detects npm/yarn/pnpm/bun)
 - Manage git worktrees for parallel work
+- Browse and edit your Claude Code skills, agents, commands, and `CLAUDE.md` files — both global (`~/.claude/`) and project-scoped — in a built-in editor with a fullscreen toggle and resizable split
 - Send Claude commands from the toolkit (create PR, commit, review code, show changes)
 - Get notified when Claude finishes or needs input (badges, desktop notifications, sound)
 - Search and filter sessions with Cmd+F
@@ -43,21 +44,28 @@ Every time you run `claude` in a terminal, it creates a session file in `~/.clau
 
 ```
 ~/.claude/
-├── sessions/          Harness reads these to find running Claude processes
-│   └── {PID}.json       { pid, sessionId, cwd, startedAt }
-└── projects/          Harness reads these for conversation history
-    └── {slug}/
-        └── {id}.jsonl   First user message becomes the session label
+├── sessions/            Harness reads these to find running Claude processes
+│   └── {PID}.json         { pid, sessionId, cwd, startedAt }
+├── projects/            Harness reads these for conversation history
+│   └── {slug}/
+│       └── {id}.jsonl     First user message becomes the session label
+├── skills/{name}/SKILL.md   Editable in the Skills tab
+├── agents/{name}.md         Editable in the Skills tab
+├── commands/{name}.md       Editable in the Skills tab
+└── CLAUDE.md            Global instructions; editable in the Skills tab
 ```
 
-The app polls every 5 seconds (via TanStack Query), detects which PIDs are alive, and merges running + past sessions into the sidebar.
+The same layout applies to project-scoped files under `<project>/.claude/` (plus `<project>/CLAUDE.md` at the project root).
+
+The app polls every 5 seconds (via TanStack Query), detects which PIDs are alive, and merges running + past sessions into the sidebar. The Skills tab uses a file watcher to refresh on external changes.
 
 ## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
 | `Cmd+J` | Toggle bottom terminal panel |
-| `Cmd+F` | Search / filter sessions |
+| `Cmd+F` | Search / filter sessions or skills |
+| `Cmd+S` | Save the open skill/agent/command/CLAUDE.md in the editor |
 
 ---
 
@@ -92,6 +100,7 @@ Electron main process          Renderer (React)
 │ node-pty (PTY mgmt) │◄──IPC──►│ xterm.js + WebGL (terminal) │
 │ SessionManager      │◄──IPC──►│ TanStack Query (sessions)   │
 │ WorktreeManager     │◄──IPC──►│ React components (UI)       │
+│ ConfigManager       │◄──IPC──►│ Skills editor + watcher     │
 │ AttentionDetector   │◄──IPC──►│ Notification system         │
 │ Updater             │◄──IPC──►│ Update banner               │
 └─────────────────────┘        └──────────────────────────────┘
@@ -133,6 +142,7 @@ src/
 │   ├── index.ts           IPC handlers, PTY spawn, window setup
 │   ├── sessions.ts        Read ~/.claude/, detect package managers
 │   ├── worktrees.ts       git worktree list/create/remove
+│   ├── claudeConfig.ts    Skills/agents/commands/CLAUDE.md CRUD + fs.watch
 │   ├── notifications.ts   Terminal attention detection (idle + patterns)
 │   └── updater.ts         GitHub release version checker
 ├── preload/
@@ -140,22 +150,24 @@ src/
 │   └── index.d.ts         TypeScript types for window.api
 └── renderer/
     └── src/
-        ├── App.tsx         Layout, terminal + split pane state
-        ├── types.ts        Session, TerminalInstance, ToolkitAction
+        ├── App.tsx         Layout, terminal + split pane + skills editor state
+        ├── types.ts        Session, TerminalInstance, ToolkitAction, ConfigEntry
         ├── tokens.css      Design tokens (stone palette, dark/light)
         ├── hooks/
-        │   ├── useSessions.ts       TanStack Query hooks
-        │   ├── useTheme.ts          Dark/light toggle
-        │   ├── useNotifications.ts  Attention event state
-        │   └── useNotificationSound.ts  Audio chime
+        │   ├── useSessions.ts          TanStack Query hooks
+        │   ├── useClaudeConfig.ts      Skills list + detail, watcher invalidation
+        │   ├── useTheme.ts             Dark/light toggle
+        │   ├── useNotifications.ts     Attention event state
+        │   └── useNotificationSound.ts Audio chime
         └── components/
-            ├── SessionPanel.tsx     Accordion by project, session list, search
+            ├── SessionPanel.tsx     Sessions tab + Skills tab host
+            ├── ConfigPanel.tsx      Skills/agents/commands/CLAUDE.md browser
+            ├── ConfigEditor.tsx     Frontmatter + body editor; fullscreen + reveal + open-external
             ├── TerminalView.tsx     xterm.js + PTY bridge, theme + Nerd Font support
             ├── BottomTerminal.tsx   Tabbed general-purpose terminal panel
             ├── Toolkit.tsx          Grouped action grid (claude + shell + tools)
             ├── ToolkitAction.tsx    Single action with animated icon
             ├── WorktreePanel.tsx    Git worktree overlay
-            ├── NotificationPanel.tsx Notification list
             ├── UpdateBanner.tsx     Update notification banner
             ├── StatusBar.tsx        cwd, git branch (live), model, terminal toggle
             ├── TitleBar.tsx         Logo, title, theme toggle

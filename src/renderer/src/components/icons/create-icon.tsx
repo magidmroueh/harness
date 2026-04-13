@@ -29,13 +29,15 @@ export function createAnimatedIcon(
       });
       const handleMouseEnter = useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
-          isControlledRef.current ? onMouseEnter?.(e) : controls.start("animate");
+          if (isControlledRef.current) onMouseEnter?.(e);
+          else controls.start("animate");
         },
         [controls, onMouseEnter],
       );
       const handleMouseLeave = useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
-          isControlledRef.current ? onMouseLeave?.(e) : controls.start("normal");
+          if (isControlledRef.current) onMouseLeave?.(e);
+          else controls.start("normal");
         },
         [controls, onMouseLeave],
       );

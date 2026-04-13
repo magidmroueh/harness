@@ -50,6 +50,28 @@ const api = {
   git: {
     branch: (cwd: string) => ipcRenderer.invoke("git:branch", { cwd }) as Promise<string>,
   },
+  config: {
+    list: (cwd: string | null) => ipcRenderer.invoke("config:list", { cwd }),
+    read: (kind: string, scope: string, name: string, cwd: string | null) =>
+      ipcRenderer.invoke("config:read", { kind, scope, name, cwd }),
+    write: (
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+      frontmatter: Record<string, unknown>,
+      body: string,
+    ) => ipcRenderer.invoke("config:write", { kind, scope, name, cwd, frontmatter, body }),
+    create: (kind: string, scope: string, name: string, cwd: string | null) =>
+      ipcRenderer.invoke("config:create", { kind, scope, name, cwd }),
+    remove: (kind: string, scope: string, name: string, cwd: string | null) =>
+      ipcRenderer.invoke("config:remove", { kind, scope, name, cwd }),
+    reveal: (kind: string, scope: string, name: string, cwd: string | null) =>
+      ipcRenderer.invoke("config:reveal", { kind, scope, name, cwd }),
+    openExternal: (kind: string, scope: string, name: string, cwd: string | null) =>
+      ipcRenderer.invoke("config:open-external", { kind, scope, name, cwd }),
+    onChanged: (cb: () => void) => onIpc<void>("config:changed", cb),
+  },
   dialog: {
     openFolder: () => ipcRenderer.invoke("dialog:open-folder") as Promise<string | null>,
   },

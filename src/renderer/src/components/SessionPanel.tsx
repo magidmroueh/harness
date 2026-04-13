@@ -1,20 +1,23 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Session, TerminalInstance, PanelTab, ActivityEvent, IconHandle } from "../types";
+import { Session, TerminalInstance, PanelTab, IconHandle, ConfigSelection } from "../types";
 import { timeAgo } from "../utils/time";
 import { SearchIcon, PlusIcon } from "./icons";
+import { ConfigPanel } from "./ConfigPanel";
 
 interface Props {
   sessions: Session[];
   terminals: TerminalInstance[];
   activeTerminalId: string | null;
-  activity: ActivityEvent[];
   unreadByTerminal: Map<string, number>;
+  activeCwd: string | null;
   onResumeSession: (session: Session) => void;
   onSelectTerminal: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
   onDeleteSession: (session: Session) => void;
   onNewSession: () => void;
   onNewSessionInProject: (cwd: string, name: string) => void;
+  selectedConfig: ConfigSelection | null;
+  onSelectConfig: (sel: ConfigSelection | null) => void;
 }
 
 interface ProjectGroup {
@@ -28,14 +31,16 @@ export function SessionPanel({
   sessions,
   terminals,
   activeTerminalId,
-  activity,
   unreadByTerminal,
+  activeCwd,
   onResumeSession,
   onSelectTerminal,
   onCloseTerminal,
   onDeleteSession,
   onNewSession,
   onNewSessionInProject,
+  selectedConfig,
+  onSelectConfig,
 }: Props) {
   const [tab, setTab] = useState<PanelTab>("sessions");
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
@@ -46,8 +51,9 @@ export function SessionPanel({
   const searchIconRef = useRef<IconHandle>(null);
   const plusIconRef = useRef<IconHandle>(null);
 
-  // Cmd+F to open search, Escape to close
+  // Cmd+F to open search, Escape to close. Skip when on the Skills tab — it has its own search.
   useEffect(() => {
+    if (tab === "skills") return;
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey && e.key === "f") {
         e.preventDefault();
@@ -62,7 +68,7 @@ export function SessionPanel({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [searchOpen]);
+  }, [searchOpen, tab]);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
@@ -128,7 +134,7 @@ export function SessionPanel({
         }}
       >
         <div style={{ display: "flex", gap: 16 }}>
-          {(["sessions", "activity"] as PanelTab[]).map((t) => (
+          {(["sessions", "skills"] as PanelTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -150,6 +156,7 @@ export function SessionPanel({
           ))}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
+          {tab === "sessions" && (
           <div
             onClick={() => {
               setSearchOpen(true);
@@ -171,6 +178,8 @@ export function SessionPanel({
           >
             <SearchIcon ref={searchIconRef} size={16} />
           </div>
+          )}
+          {tab === "sessions" && (
           <button
             onClick={onNewSession}
             style={{
@@ -199,11 +208,12 @@ export function SessionPanel({
           >
             <PlusIcon ref={plusIconRef} size={16} />
           </button>
+          )}
         </div>
       </div>
 
       {/* Search bar */}
-      {searchOpen && (
+      {searchOpen && tab === "sessions" && (
         <div
           style={{
             padding: "8px 16px",
@@ -262,10 +272,22 @@ export function SessionPanel({
         </div>
       )}
 
+      {/* Skills tab: panel takes over everything below the tab bar */}
+      {tab === "skills" && (
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <ConfigPanel
+            cwd={activeCwd}
+            isActive={tab === "skills"}
+            selected={selectedConfig}
+            onSelect={onSelectConfig}
+          />
+        </div>
+      )}
+
       {/* Content */}
+      {tab === "sessions" && (
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-        {tab === "sessions" ? (
-          projects.length === 0 ? (
+        {projects.length === 0 ? (
             <div
               style={{
                 padding: 24,
@@ -544,45 +566,11 @@ export function SessionPanel({
                 </div>
               );
             })
-          )
-        ) : (
-          <div style={{ padding: 16 }}>
-            {activity.length === 0 ? (
-              <div
-                style={{
-                  color: "var(--text-muted)",
-                  fontSize: "0.8125rem",
-                  textAlign: "center",
-                  paddingTop: 8,
-                }}
-              >
-                No recent activity
-              </div>
-            ) : (
-              activity.map((ev) => (
-                <div
-                  key={ev.id}
-                  style={{
-                    padding: "8px 0",
-                    borderBottom: "1px solid var(--border)",
-                    fontSize: "0.78rem",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <span>{ev.message}</span>
-                  <span style={{ float: "right", color: "var(--text-muted)", fontSize: "0.7rem" }}>
-                    {new Date(ev.timestamp).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+          )}
       </div>
+      )}
 
+      {tab === "sessions" && (
       <div
         style={{
           padding: "8px 16px",
@@ -598,6 +586,7 @@ export function SessionPanel({
         <span>⌘F Search</span>
         <span>⌘J Terminal</span>
       </div>
+      )}
 
       {/* Delete confirmation popup */}
       {confirmDelete && (

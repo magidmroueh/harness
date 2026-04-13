@@ -22,6 +22,31 @@ export interface Worktree {
   isMain: boolean;
 }
 
+export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
+export type ConfigScope = "global" | "project";
+
+export interface ConfigEntry {
+  kind: ConfigKind;
+  scope: ConfigScope;
+  name: string;
+  path: string;
+  frontmatter: Record<string, unknown>;
+  description?: string;
+  hasResources?: boolean;
+  folderPath?: string;
+}
+
+export interface ConfigFileDetail extends ConfigEntry {
+  body: string;
+  resources?: string[];
+}
+
+export interface ConfigSelection {
+  kind: ConfigKind;
+  scope: ConfigScope;
+  name: string;
+}
+
 export interface IconHandle {
   startAnimation: () => void;
   stopAnimation: () => void;
@@ -46,7 +71,7 @@ export interface TerminalInstance {
   resumeSessionId?: string; // set only when resuming an existing session
 }
 
-export type PanelTab = "sessions" | "activity";
+export type PanelTab = "sessions" | "skills";
 
 export interface AttentionEvent {
   id: string;
@@ -55,17 +80,4 @@ export interface AttentionEvent {
   summary: string;
   timestamp: number;
   dismissed: boolean;
-}
-
-export interface ActivityEvent {
-  id: string;
-  type:
-    | "session_created"
-    | "session_ended"
-    | "command_run"
-    | "worktree_created"
-    | "worktree_removed";
-  message: string;
-  timestamp: number;
-  sessionId?: string;
 }

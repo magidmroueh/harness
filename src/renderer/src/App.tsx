@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Session, TerminalInstance, ToolkitAction as ActionType, ActivityEvent } from "./types";
+import { Session, TerminalInstance, ToolkitAction as ActionType, ConfigSelection } from "./types";
 import { useSessions, useDeleteSession } from "./hooks/useSessions";
 import { useTheme } from "./hooks/useTheme";
 import { useNotifications } from "./hooks/useNotifications";
@@ -13,6 +13,24 @@ import { StatusBar } from "./components/StatusBar";
 import { NewSessionDialog } from "./components/NewSessionDialog";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { BottomTerminal } from "./components/BottomTerminal";
+import { ConfigEditor } from "./components/ConfigEditor";
+
+const SIDEBAR_WIDTH_KEY = "harness.configEditor.sidebarWidth";
+const SIDEBAR_MIN = 240;
+const SIDEBAR_MAX = 600;
+const SIDEBAR_DEFAULT = 340;
+
+function readSidebarWidth(): number {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (!raw) return SIDEBAR_DEFAULT;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return SIDEBAR_DEFAULT;
+    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, n));
+  } catch {
+    return SIDEBAR_DEFAULT;
+  }
+}
 
 interface SplitPane {
   id: string;
@@ -21,6 +39,8 @@ interface SplitPane {
   label: string;
 }
 
+type SplitPanesMap = Map<string, SplitPane>;
+
 export function App() {
   const { data: sessions = [] } = useSessions();
   const deleteSession = useDeleteSession();
@@ -28,11 +48,51 @@ export function App() {
 
   const [terminals, setTerminals] = useState<TerminalInstance[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
-  const [splitPane, setSplitPane] = useState<SplitPane | null>(null);
-  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [splitPanes, setSplitPanes] = useState<SplitPanesMap>(() => new Map());
   const [showNewSession, setShowNewSession] = useState(false);
   const [showBottomTerminal, setShowBottomTerminal] = useState(false);
   const [showWorktrees, setShowWorktrees] = useState(false);
+  const [selectedConfig, setSelectedConfig] = useState<ConfigSelection | null>(null);
+  const [editorFullscreen, setEditorFullscreen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => readSidebarWidth());
+  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleCloseEditor = useCallback(() => {
+    setSelectedConfig(null);
+    setEditorFullscreen(false);
+  }, []);
+
+  const handleDividerMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragStateRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+      let lastWidth = sidebarWidth;
+      const onMove = (me: MouseEvent) => {
+        const st = dragStateRef.current;
+        if (!st) return;
+        const delta = st.startX - me.clientX;
+        lastWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, st.startWidth + delta));
+        setSidebarWidth(lastWidth);
+      };
+      const onUp = () => {
+        dragStateRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        try {
+          localStorage.setItem(SIDEBAR_WIDTH_KEY, String(lastWidth));
+        } catch {
+          /* ignore quota errors */
+        }
+      };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [sidebarWidth],
+  );
 
   const terminalsRef = useRef(terminals);
   terminalsRef.current = terminals;
@@ -71,46 +131,32 @@ export function App() {
     );
   }, [activeTerminal, sessions]);
 
-  const addActivity = useCallback((type: ActivityEvent["type"], message: string) => {
-    setActivity((prev) =>
-      [{ id: crypto.randomUUID(), type, message, timestamp: Date.now() }, ...prev].slice(0, 50),
-    );
+  const handleResumeSession = useCallback(async (session: Session) => {
+    const terminalId = crypto.randomUUID();
+    const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
+    setTerminals((prev) => [
+      ...prev,
+      {
+        terminalId,
+        cwd: session.cwd,
+        projectName: session.name,
+        packageManager: pm,
+        resumeSessionId: session.sessionId,
+      },
+    ]);
+    setActiveTerminalId(terminalId);
   }, []);
 
-  const handleResumeSession = useCallback(
-    async (session: Session) => {
-      const terminalId = crypto.randomUUID();
-      const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
-      setTerminals((prev) => [
-        ...prev,
-        {
-          terminalId,
-          cwd: session.cwd,
-          projectName: session.name,
-          packageManager: pm,
-          resumeSessionId: session.sessionId,
-        },
-      ]);
-      setActiveTerminalId(terminalId);
-      addActivity("session_created", `Resumed: ${session.name}`);
-    },
-    [addActivity],
-  );
-
-  const handleNewSession = useCallback(
-    async (name: string, cwd: string) => {
-      const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
-      const terminalId = crypto.randomUUID();
-      const pm = await window.api.sessions.detectPM(expandedCwd);
-      setTerminals((prev) => [
-        ...prev,
-        { terminalId, cwd: expandedCwd, projectName: name, packageManager: pm },
-      ]);
-      setActiveTerminalId(terminalId);
-      addActivity("session_created", `New session: ${name}`);
-    },
-    [addActivity],
-  );
+  const handleNewSession = useCallback(async (name: string, cwd: string) => {
+    const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
+    const terminalId = crypto.randomUUID();
+    const pm = await window.api.sessions.detectPM(expandedCwd);
+    setTerminals((prev) => [
+      ...prev,
+      { terminalId, cwd: expandedCwd, projectName: name, packageManager: pm },
+    ]);
+    setActiveTerminalId(terminalId);
+  }, []);
 
   const handleCloseTerminal = useCallback((terminalId: string) => {
     // Don't kill PTY here — TerminalView's cleanup handles it on unmount
@@ -121,38 +167,51 @@ export function App() {
       );
       return remaining;
     });
+    setSplitPanes((prev) => {
+      if (!prev.has(terminalId)) return prev;
+      const next = new Map(prev);
+      next.delete(terminalId);
+      return next;
+    });
   }, []);
 
   const handleCloseSplit = useCallback(() => {
-    // Just remove from state — TerminalView's cleanup will kill the PTY
-    setSplitPane(null);
-  }, []);
+    if (!activeTerminalId) return;
+    setSplitPanes((prev) => {
+      if (!prev.has(activeTerminalId)) return prev;
+      const next = new Map(prev);
+      next.delete(activeTerminalId);
+      return next;
+    });
+  }, [activeTerminalId]);
 
   const handleDeleteSession = useCallback(
     (session: Session) => {
       deleteSession.mutate(session);
-      addActivity("session_ended", `Deleted: ${session.label}`);
     },
-    [deleteSession, addActivity],
+    [deleteSession],
   );
 
   const handleRunAction = useCallback(
     (action: ActionType) => {
       if (action.mode === "claude") {
-        // Claude actions write into the active Claude terminal
         if (!activeTerminalId) return;
         window.api.terminal.write(activeTerminalId, action.command + "\r");
       } else if (action.mode === "shell") {
-        // Shell actions open in the split pane
-        // Setting new state unmounts the old TerminalView, whose cleanup kills the old PTY
+        if (!activeTerminalId) return;
         const cwd = activeTerminal?.cwd || window.api.homeDir;
         const id = crypto.randomUUID();
-        setSplitPane({ id, cwd, command: action.command, label: action.label });
+        setSplitPanes((prev) => {
+          const next = new Map(prev);
+          next.set(activeTerminalId, { id, cwd, command: action.command, label: action.label });
+          return next;
+        });
       }
-      addActivity("command_run", action.label);
     },
-    [activeTerminalId, activeTerminal, addActivity],
+    [activeTerminalId, activeTerminal],
   );
+
+  const activeSplitPane = activeTerminalId ? splitPanes.get(activeTerminalId) || null : null;
 
   const handleWorktreeSession = useCallback(
     (cwd: string, name: string) => {
@@ -190,8 +249,29 @@ export function App() {
       <TitleBar theme={theme} onToggleTheme={toggleTheme} />
       <UpdateBanner />
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Terminal area */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
+        {/* Main area: either terminals or the config editor */}
+        {selectedConfig && !editorFullscreen ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            }}
+          >
+            <ConfigEditor
+              kind={selectedConfig.kind}
+              scope={selectedConfig.scope}
+              name={selectedConfig.name}
+              cwd={activeTerminal?.cwd || null}
+              onClose={handleCloseEditor}
+              onDeleted={handleCloseEditor}
+              isFullscreen={editorFullscreen}
+              onToggleFullscreen={() => setEditorFullscreen((v) => !v)}
+            />
+          </div>
+        ) : (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ flex: 1, display: "flex" }}>
             {/* Main terminal (Claude) */}
@@ -250,73 +330,95 @@ export function App() {
               )}
             </div>
 
-            {/* Split pane (shell commands) */}
-            {splitPane && (
+            {/* Split panes (per-terminal shell commands). All panes stay
+                mounted across session switches; only the active terminal's
+                pane is visible. */}
+            {splitPanes.size > 0 && (
               <>
-                <div style={{ width: 1, background: "var(--border)", flexShrink: 0 }} />
                 <div
                   style={{
-                    width: "40%",
-                    minWidth: 200,
+                    width: activeSplitPane ? 1 : 0,
+                    background: "var(--border)",
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    width: activeSplitPane ? "40%" : 0,
+                    minWidth: activeSplitPane ? 200 : 0,
                     display: "flex",
                     flexDirection: "column",
+                    overflow: "hidden",
                   }}
                 >
-                  {/* Split header */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "4px 8px 4px 12px",
-                      background: "var(--bg)",
-                      borderBottom: "1px solid var(--border)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        fontWeight: 500,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {splitPane.label}
-                    </span>
-                    <button
-                      onClick={handleCloseSplit}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                        fontSize: "0.75rem",
-                        padding: "2px 6px",
-                        borderRadius: "var(--radius-sm)",
-                        transition: "color 150ms",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-primary)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {/* Split terminal */}
-                  <div style={{ flex: 1, position: "relative" }}>
-                    <TerminalView
-                      sessionId={splitPane.id}
-                      cwd={splitPane.cwd}
-                      isActive
-                      shellCommand={splitPane.command}
-                      theme={theme}
-                    />
-                  </div>
+                  {Array.from(splitPanes.entries()).map(([termId, pane]) => {
+                    const isActive = termId === activeTerminalId;
+                    return (
+                      <div
+                        key={pane.id}
+                        style={{
+                          display: isActive ? "flex" : "none",
+                          flexDirection: "column",
+                          flex: 1,
+                          minHeight: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "4px 8px 4px 12px",
+                            background: "var(--bg)",
+                            borderBottom: "1px solid var(--border)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 500,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.08em",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {pane.label}
+                          </span>
+                          <button
+                            onClick={handleCloseSplit}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--text-muted)",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                              padding: "2px 6px",
+                              borderRadius: "var(--radius-sm)",
+                              transition: "color 150ms",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = "var(--text-primary)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = "var(--text-muted)";
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div style={{ flex: 1, position: "relative" }}>
+                          <TerminalView
+                            sessionId={pane.id}
+                            cwd={pane.cwd}
+                            isActive={isActive}
+                            shellCommand={pane.command}
+                            theme={theme}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -333,12 +435,32 @@ export function App() {
             theme={theme}
           />
         </div>
+        )}
+
+        {selectedConfig && !editorFullscreen && (
+          <div
+            onMouseDown={handleDividerMouseDown}
+            style={{
+              width: 4,
+              cursor: "col-resize",
+              background: "var(--border)",
+              flexShrink: 0,
+              transition: "background 150ms",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--text-muted)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--border)";
+            }}
+          />
+        )}
 
         {/* Right sidebar */}
         <div
           style={{
-            width: 340,
-            borderLeft: "1px solid var(--border)",
+            width: selectedConfig && !editorFullscreen ? sidebarWidth : 340,
+            borderLeft: selectedConfig && !editorFullscreen ? "none" : "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
             flexShrink: 0,
@@ -363,14 +485,16 @@ export function App() {
               sessions={sessions}
               terminals={terminals}
               activeTerminalId={activeTerminalId}
-              activity={activity}
               unreadByTerminal={unreadByTerminal}
+              activeCwd={activeTerminal?.cwd || null}
               onResumeSession={handleResumeSession}
               onSelectTerminal={setActiveTerminalId}
               onCloseTerminal={handleCloseTerminal}
               onDeleteSession={handleDeleteSession}
               onNewSession={() => setShowNewSession(true)}
               onNewSessionInProject={(cwd, name) => handleNewSession(name, cwd)}
+              selectedConfig={selectedConfig}
+              onSelectConfig={setSelectedConfig}
             />
           </div>
 
@@ -389,6 +513,29 @@ export function App() {
             onCreateSession={handleWorktreeSession}
           />
         </div>
+
+        {selectedConfig && editorFullscreen && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 50,
+              background: "var(--bg)",
+              display: "flex",
+            }}
+          >
+            <ConfigEditor
+              kind={selectedConfig.kind}
+              scope={selectedConfig.scope}
+              name={selectedConfig.name}
+              cwd={activeTerminal?.cwd || null}
+              onClose={handleCloseEditor}
+              onDeleted={handleCloseEditor}
+              isFullscreen={editorFullscreen}
+              onToggleFullscreen={() => setEditorFullscreen((v) => !v)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
