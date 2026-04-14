@@ -4,12 +4,6 @@ import { join } from "path";
 
 export type ProviderId = "claude" | "codex" | "cursor";
 
-/** A concrete program to spawn in a PTY. Keeps the shell out of the loop. */
-export interface LaunchSpec {
-  cmd: string;
-  args: string[];
-}
-
 /**
  * Extra PATH entries added to every shell invocation so provider binaries
  * are discoverable regardless of how Electron was launched (Finder vs
@@ -37,6 +31,7 @@ export interface ProviderStatus {
   historySupported: boolean;
   configSupported: boolean;
   installCommand?: string;
+  startCommand: string;
   resumeSupported: boolean;
 }
 
@@ -48,10 +43,8 @@ interface ProviderDefinition {
   historySupported: boolean;
   configSupported: boolean;
   resumeSupported: boolean;
-  /** Extra args appended after the binary for a fresh session. */
-  startArgs?: string[];
-  /** Args used when resuming; `$SESSION` is replaced with the session id. */
-  resumeArgs?: string[];
+  buildStartCommand: () => string;
+  buildResumeCommand?: (sessionId: string) => string;
 }
 
 const PROVIDERS: ProviderDefinition[] = [
@@ -62,7 +55,8 @@ const PROVIDERS: ProviderDefinition[] = [
     historySupported: true,
     configSupported: true,
     resumeSupported: true,
-    resumeArgs: ["--resume", "$SESSION"],
+    buildStartCommand: () => "claude",
+    buildResumeCommand: (sessionId) => `claude --resume ${shellQuote(sessionId)}`,
   },
   {
     id: "codex",
@@ -72,7 +66,8 @@ const PROVIDERS: ProviderDefinition[] = [
     historySupported: true,
     configSupported: false,
     resumeSupported: true,
-    resumeArgs: ["resume", "$SESSION"],
+    buildStartCommand: () => "codex",
+    buildResumeCommand: (sessionId) => `codex resume ${shellQuote(sessionId)}`,
   },
   {
     id: "cursor",
@@ -84,12 +79,17 @@ const PROVIDERS: ProviderDefinition[] = [
     historySupported: true,
     configSupported: true,
     resumeSupported: true,
-    resumeArgs: ["--resume", "$SESSION"],
+    buildStartCommand: () => "agent",
+    buildResumeCommand: (sessionId) => `agent --resume ${shellQuote(sessionId)}`,
   },
 ];
 
 function shellPath(): string {
   return process.env.SHELL || "/bin/zsh";
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function runShell(command: string): Promise<{ stdout: string; stderr: string }> {
@@ -106,7 +106,7 @@ function runShell(command: string): Promise<{ stdout: string; stderr: string }> 
 
 async function isInstalled(binary: string): Promise<boolean> {
   try {
-    await runShell(`command -v ${binary}`);
+    await runShell(`command -v ${shellQuote(binary)}`);
     return true;
   } catch {
     return false;
@@ -122,6 +122,7 @@ function toStatus(definition: ProviderDefinition, installed: boolean): ProviderS
     historySupported: definition.historySupported,
     configSupported: definition.configSupported,
     installCommand: definition.installCommand,
+    startCommand: definition.buildStartCommand(),
     resumeSupported: definition.resumeSupported,
   };
 }
@@ -151,14 +152,11 @@ export class ProviderManager {
     }
   }
 
-  getLaunchSpec(id: ProviderId, resumeSessionId?: string): LaunchSpec {
+  getLaunchCommand(id: ProviderId, resumeSessionId?: string): string {
     const provider = PROVIDERS.find((item) => item.id === id) || PROVIDERS[0];
-    if (resumeSessionId && provider.resumeSupported && provider.resumeArgs) {
-      return {
-        cmd: provider.binary,
-        args: provider.resumeArgs.map((a) => (a === "$SESSION" ? resumeSessionId : a)),
-      };
+    if (resumeSessionId && provider.resumeSupported && provider.buildResumeCommand) {
+      return provider.buildResumeCommand(resumeSessionId);
     }
-    return { cmd: provider.binary, args: provider.startArgs ?? [] };
+    return provider.buildStartCommand();
   }
 }

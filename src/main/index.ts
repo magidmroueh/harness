@@ -104,11 +104,6 @@ ipcMain.handle(
       env: {
         ...process.env,
         PATH: currentPath ? `${EXTRA_PATH}:${currentPath}` : EXTRA_PATH,
-        // Powerlevel10k's instant prompt hijacks stdin while `.zshrc` loads,
-        // swallowing anything we write into the PTY before the real prompt
-        // is ready. Disable it for our tabs; the user's regular terminal is
-        // unaffected.
-        POWERLEVEL9K_INSTANT_PROMPT: "off",
         COLORTERM: "truecolor",
         TERM_PROGRAM: "Harness",
         TERM_PROGRAM_VERSION: app.getVersion(),
@@ -202,9 +197,9 @@ ipcMain.handle("sessions:detect-pm", (_, { cwd }) => detectPackageManager(cwd));
 ipcMain.handle("providers:list", () => providers.list());
 ipcMain.handle("providers:install", (_, { id }: { id: ProviderId }) => providers.install(id));
 ipcMain.handle(
-  "providers:launch-spec",
+  "providers:launch-command",
   (_, { id, resumeSessionId }: { id: ProviderId; resumeSessionId?: string }) =>
-    providers.getLaunchSpec(id, resumeSessionId),
+    providers.getLaunchCommand(id, resumeSessionId),
 );
 
 ipcMain.handle("git:branch", async (_, { cwd }: { cwd: string }) => {

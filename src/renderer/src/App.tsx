@@ -212,7 +212,7 @@ export function App() {
   const handleResumeSession = useCallback(async (session: Session) => {
     const terminalId = crypto.randomUUID();
     const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
-    const launchSpec = await window.api.providers.launchSpec(session.provider, session.sessionId);
+    const startupCommand = await window.api.providers.launchCommand(session.provider, session.sessionId);
     setTerminals((prev) => [
       ...prev,
       {
@@ -221,7 +221,7 @@ export function App() {
         cwd: session.cwd,
         projectName: session.name,
         packageManager: pm,
-        launchSpec,
+        startupCommand,
         resumeSessionId: session.sessionId,
       },
     ]);
@@ -233,7 +233,7 @@ export function App() {
       const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
       const terminalId = crypto.randomUUID();
       const pm = await window.api.sessions.detectPM(expandedCwd);
-      const launchSpec = await window.api.providers.launchSpec(selectedProvider);
+      const startupCommand = await window.api.providers.launchCommand(selectedProvider);
       setTerminals((prev) => [
         ...prev,
         {
@@ -242,7 +242,7 @@ export function App() {
           cwd: expandedCwd,
           projectName: name,
           packageManager: pm,
-          launchSpec,
+          startupCommand,
         },
       ]);
       setActiveTerminalId(terminalId);
@@ -463,7 +463,7 @@ export function App() {
                       sessionId={terminal.terminalId}
                       cwd={terminal.cwd}
                       isActive={terminal.terminalId === activeTerminalId}
-                      launchSpec={terminal.launchSpec}
+                      launchCommand={terminal.startupCommand}
                       theme={theme}
                     />
                   ))

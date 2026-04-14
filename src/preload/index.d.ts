@@ -41,12 +41,8 @@ export interface ProviderStatus {
   historySupported: boolean;
   configSupported: boolean;
   installCommand?: string;
+  startCommand: string;
   resumeSupported: boolean;
-}
-
-export interface LaunchSpec {
-  cmd: string;
-  args: string[];
 }
 
 export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
@@ -93,7 +89,10 @@ export interface HarnessAPI {
   providers: {
     list: () => Promise<ProviderStatus[]>;
     install: (id: ProviderId) => Promise<{ ok: boolean; error?: string }>;
-    launchSpec: (id: ProviderId, resumeSessionId?: string) => Promise<LaunchSpec>;
+    launchCommand: (
+      id: ProviderId,
+      resumeSessionId?: string,
+    ) => Promise<string>;
   };
   worktrees: {
     list: (cwd: string) => Promise<Worktree[]>;

@@ -9,14 +9,8 @@ function onIpc<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api = {
   terminal: {
-    create: (opts: {
-      id: string;
-      cwd?: string;
-      cmd?: string;
-      args?: string[];
-      cols?: number;
-      rows?: number;
-    }) => ipcRenderer.invoke("terminal:create", opts),
+    create: (opts: { id: string; cwd?: string; cmd?: string; args?: string[] }) =>
+      ipcRenderer.invoke("terminal:create", opts),
     write: (id: string, data: string) => ipcRenderer.invoke("terminal:write", { id, data }),
     resize: (id: string, cols: number, rows: number) =>
       ipcRenderer.invoke("terminal:resize", { id, cols, rows }),
@@ -36,11 +30,8 @@ const api = {
   providers: {
     list: () => ipcRenderer.invoke("providers:list"),
     install: (id: ProviderId) => ipcRenderer.invoke("providers:install", { id }),
-    launchSpec: (id: ProviderId, resumeSessionId?: string) =>
-      ipcRenderer.invoke("providers:launch-spec", { id, resumeSessionId }) as Promise<{
-        cmd: string;
-        args: string[];
-      }>,
+    launchCommand: (id: ProviderId, resumeSessionId?: string) =>
+      ipcRenderer.invoke("providers:launch-command", { id, resumeSessionId }) as Promise<string>,
   },
   worktrees: {
     list: (cwd: string) => ipcRenderer.invoke("worktrees:list", { cwd }),

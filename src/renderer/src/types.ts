@@ -33,12 +33,8 @@ export interface ProviderStatus {
   historySupported: boolean;
   configSupported: boolean;
   installCommand?: string;
+  startCommand: string;
   resumeSupported: boolean;
-}
-
-export interface LaunchSpec {
-  cmd: string;
-  args: string[];
 }
 
 export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
@@ -88,7 +84,7 @@ export interface TerminalInstance {
   cwd: string;
   projectName: string;
   packageManager: "npm" | "yarn" | "pnpm" | "bun";
-  launchSpec?: LaunchSpec;
+  startupCommand?: string;
   resumeSessionId?: string; // set only when resuming an existing session
 }
 

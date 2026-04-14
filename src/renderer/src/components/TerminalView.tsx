@@ -4,15 +4,11 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
-import type { LaunchSpec } from "../types";
 
 interface Props {
   sessionId: string;
   cwd?: string;
   isActive: boolean;
-  /** Spawn this binary directly in the PTY — bypasses the shell entirely. */
-  launchSpec?: LaunchSpec;
-  /** Written into a shell after spawn. Use for commands that need shell features. */
   launchCommand?: string;
   theme?: "light" | "dark";
 }
@@ -67,14 +63,7 @@ const LIGHT_THEME = {
   brightWhite: "#ffffff",
 };
 
-export function TerminalView({
-  sessionId,
-  cwd,
-  isActive,
-  launchSpec,
-  launchCommand,
-  theme = "dark",
-}: Props) {
+export function TerminalView({ sessionId, cwd, isActive, launchCommand, theme = "dark" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -120,14 +109,7 @@ export function TerminalView({
     let disposed = false;
 
     window.api.terminal
-      .create({
-        id: sessionId,
-        cwd,
-        cmd: launchSpec?.cmd,
-        args: launchSpec?.args,
-        cols: term.cols,
-        rows: term.rows,
-      })
+      .create({ id: sessionId, cwd, cols: term.cols, rows: term.rows })
       .then((result) => {
         if (disposed) return;
         if (result && "error" in result && result.error) {
@@ -147,14 +129,14 @@ export function TerminalView({
           term.write("\r\n\x1b[90m[session ended]\x1b[0m\r\n");
         });
 
-        // launchSpec is already running as the PTY's child; only the
-        // shell-based path needs a deferred write to the prompt.
-        if (launchCommand && !launchSpec) {
-          setTimeout(() => {
-            if (disposed) return;
+        // Auto-run command after shell is ready.
+        // "" means plain shell; any non-empty command is executed.
+        setTimeout(() => {
+          if (disposed) return;
+          if (launchCommand) {
             window.api.terminal.write(sessionId, launchCommand + "\n");
-          }, 600);
-        }
+          }
+        }, 600);
 
         cleanupRef.current = () => {
           inputDisposable.dispose();
@@ -187,7 +169,7 @@ export function TerminalView({
       fitRef.current = null;
       window.api.terminal.kill(sessionId);
     };
-  }, [sessionId, cwd, launchSpec, launchCommand]);
+  }, [sessionId, cwd, launchCommand]);
 
   useEffect(() => {
     if (termRef.current) {
