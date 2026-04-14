@@ -84,7 +84,9 @@ export interface TerminalInstance {
   cwd: string;
   projectName: string;
   packageManager: "npm" | "yarn" | "pnpm" | "bun";
-  startupCommand?: string;
+  /** Shell + args to spawn for this terminal (e.g. zsh -ic 'claude --resume …'). */
+  cmd?: string;
+  args?: string[];
   resumeSessionId?: string; // set only when resuming an existing session
 }
 

@@ -213,7 +213,7 @@ export function App() {
   const handleResumeSession = useCallback(async (session: Session) => {
     const terminalId = crypto.randomUUID();
     const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
-    const startupCommand = await window.api.providers.launchCommand(session.provider, session.sessionId);
+    const command = await window.api.providers.launchCommand(session.provider, session.sessionId);
     setTerminals((prev) => [
       ...prev,
       {
@@ -222,7 +222,8 @@ export function App() {
         cwd: session.cwd,
         projectName: session.name,
         packageManager: pm,
-        startupCommand,
+        cmd: "/bin/zsh",
+        args: ["-ic", command],
         resumeSessionId: session.sessionId,
       },
     ]);
@@ -234,7 +235,7 @@ export function App() {
       const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
       const terminalId = crypto.randomUUID();
       const pm = await window.api.sessions.detectPM(expandedCwd);
-      const startupCommand = await window.api.providers.launchCommand(selectedProvider);
+      const command = await window.api.providers.launchCommand(selectedProvider);
       setTerminals((prev) => [
         ...prev,
         {
@@ -243,7 +244,8 @@ export function App() {
           cwd: expandedCwd,
           projectName: name,
           packageManager: pm,
-          startupCommand,
+          cmd: "/bin/zsh",
+          args: ["-ic", command],
         },
       ]);
       setActiveTerminalId(terminalId);
@@ -473,7 +475,8 @@ export function App() {
                       sessionId={terminal.terminalId}
                       cwd={terminal.cwd}
                       isActive={terminal.terminalId === activeTerminalId}
-                      launchCommand={terminal.startupCommand}
+                      cmd={terminal.cmd}
+                      args={terminal.args}
                       theme={theme}
                     />
                   ))
