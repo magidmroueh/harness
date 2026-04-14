@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Session, TerminalInstance, ToolkitAction as ActionType, ConfigSelection } from "./types";
+import { Session, TerminalInstance, ToolkitAction as ActionType, ConfigSelection, ProviderId } from "./types";
 import { useSessions, useDeleteSession } from "./hooks/useSessions";
+import { useProviders, useInstallProvider } from "./hooks/useProviders";
 import { useTheme } from "./hooks/useTheme";
 import { useNotifications } from "./hooks/useNotifications";
 import { useNotificationSound } from "./hooks/useNotificationSound";
@@ -19,6 +20,7 @@ const SIDEBAR_WIDTH_KEY = "harness.configEditor.sidebarWidth";
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 600;
 const SIDEBAR_DEFAULT = 340;
+const PROVIDER_KEY = "harness.provider";
 
 function readSidebarWidth(): number {
   try {
@@ -32,17 +34,36 @@ function readSidebarWidth(): number {
   }
 }
 
+function readSelectedProvider(): ProviderId {
+  try {
+    const raw = localStorage.getItem(PROVIDER_KEY);
+    if (raw === "claude" || raw === "codex" || raw === "cursor") return raw;
+  } catch {
+    // ignore localStorage errors
+  }
+  return "claude";
+}
+
 interface SplitPane {
   id: string;
   cwd: string;
-  command: string;
+  launchCommand: string;
   label: string;
 }
 
 type SplitPanesMap = Map<string, SplitPane>;
 
+interface ProviderBannerState {
+  providerId: ProviderId;
+  kind: "install" | "error";
+  message: string;
+}
+
 export function App() {
-  const { data: sessions = [] } = useSessions();
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId>(() => readSelectedProvider());
+  const { data: sessions = [] } = useSessions(selectedProvider);
+  const { data: providers = [] } = useProviders();
+  const installProvider = useInstallProvider();
   const deleteSession = useDeleteSession();
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -55,7 +76,22 @@ export function App() {
   const [selectedConfig, setSelectedConfig] = useState<ConfigSelection | null>(null);
   const [editorFullscreen, setEditorFullscreen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => readSidebarWidth());
+  const [providerBanner, setProviderBanner] = useState<ProviderBannerState | null>(null);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROVIDER_KEY, selectedProvider);
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [selectedProvider]);
+
+  const providerMap = useMemo(
+    () => new Map(providers.map((provider) => [provider.id, provider])),
+    [providers],
+  );
+  const currentProvider = providerMap.get(selectedProvider) || null;
 
   const handleCloseEditor = useCallback(() => {
     setSelectedConfig(null);
@@ -115,56 +151,109 @@ export function App() {
       matched || {
         id: activeTerminal.terminalId,
         pid: 0,
+        provider: activeTerminal.provider,
         label: activeTerminal.projectName,
         name: activeTerminal.projectName,
         cwd: activeTerminal.cwd,
         branch: "—",
         status: "active" as const,
-        model: "Opus 4.6 (1M context)",
+        model: providerMap.get(activeTerminal.provider)?.label || "",
         cost: 0,
         startedAt: Date.now(),
         lastActivity: Date.now(),
         sessionId: "",
-        entrypoint: "harness",
+        entrypoint: activeTerminal.provider,
         packageManager: activeTerminal.packageManager,
       }
     );
-  }, [activeTerminal, sessions]);
+  }, [activeTerminal, sessions, providerMap]);
+
+  const handleSelectProvider = useCallback(
+    (providerId: ProviderId) => {
+      const provider = providerMap.get(providerId);
+      if (!provider) return;
+      if (!provider.installed) {
+        setProviderBanner({
+          providerId,
+          kind: "install",
+          message: `${provider.label} is not installed. Install it now and continue in-app.`,
+        });
+        return;
+      }
+      setSelectedProvider(providerId);
+      setSelectedConfig(null);
+      setEditorFullscreen(false);
+      if (providerBanner?.providerId === providerId && providerBanner.kind !== "error") {
+        setProviderBanner(null);
+      }
+    },
+    [providerBanner, providerMap],
+  );
+
+  const handleInstallSelectedProvider = useCallback(async () => {
+    if (!providerBanner || providerBanner.kind !== "install") return;
+    const targetId = providerBanner.providerId;
+    const result = await installProvider.mutateAsync(targetId);
+    if (!result.ok) {
+      setProviderBanner({
+        providerId: targetId,
+        kind: "error",
+        message: result.error || `Could not install ${targetId}.`,
+      });
+      return;
+    }
+
+    setProviderBanner(null);
+    setSelectedProvider(targetId);
+    setSelectedConfig(null);
+    setEditorFullscreen(false);
+  }, [installProvider, providerBanner]);
 
   const handleResumeSession = useCallback(async (session: Session) => {
     const terminalId = crypto.randomUUID();
     const pm = session.packageManager || (await window.api.sessions.detectPM(session.cwd));
+    const startupCommand = await window.api.providers.launchCommand(session.provider, session.sessionId);
     setTerminals((prev) => [
       ...prev,
       {
         terminalId,
+        provider: session.provider,
         cwd: session.cwd,
         projectName: session.name,
         packageManager: pm,
+        startupCommand,
         resumeSessionId: session.sessionId,
       },
     ]);
     setActiveTerminalId(terminalId);
   }, []);
 
-  const handleNewSession = useCallback(async (name: string, cwd: string) => {
-    const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
-    const terminalId = crypto.randomUUID();
-    const pm = await window.api.sessions.detectPM(expandedCwd);
-    setTerminals((prev) => [
-      ...prev,
-      { terminalId, cwd: expandedCwd, projectName: name, packageManager: pm },
-    ]);
-    setActiveTerminalId(terminalId);
-  }, []);
+  const handleNewSession = useCallback(
+    async (name: string, cwd: string) => {
+      const expandedCwd = cwd.startsWith("~/") ? cwd.replace("~", window.api.homeDir) : cwd;
+      const terminalId = crypto.randomUUID();
+      const pm = await window.api.sessions.detectPM(expandedCwd);
+      const startupCommand = await window.api.providers.launchCommand(selectedProvider);
+      setTerminals((prev) => [
+        ...prev,
+        {
+          terminalId,
+          provider: selectedProvider,
+          cwd: expandedCwd,
+          projectName: name,
+          packageManager: pm,
+          startupCommand,
+        },
+      ]);
+      setActiveTerminalId(terminalId);
+    },
+    [selectedProvider],
+  );
 
   const handleCloseTerminal = useCallback((terminalId: string) => {
-    // Don't kill PTY here — TerminalView's cleanup handles it on unmount
     setTerminals((prev) => {
       const remaining = prev.filter((t) => t.terminalId !== terminalId);
-      setActiveTerminalId((id) =>
-        id === terminalId ? (remaining.at(-1)?.terminalId ?? null) : id,
-      );
+      setActiveTerminalId((id) => (id === terminalId ? (remaining.at(-1)?.terminalId ?? null) : id));
       return remaining;
     });
     setSplitPanes((prev) => {
@@ -194,7 +283,7 @@ export function App() {
 
   const handleRunAction = useCallback(
     (action: ActionType) => {
-      if (action.mode === "claude") {
+      if (action.mode === "agent") {
         if (!activeTerminalId) return;
         window.api.terminal.write(activeTerminalId, action.command + "\r");
       } else if (action.mode === "shell") {
@@ -203,12 +292,12 @@ export function App() {
         const id = crypto.randomUUID();
         setSplitPanes((prev) => {
           const next = new Map(prev);
-          next.set(activeTerminalId, { id, cwd, command: action.command, label: action.label });
+          next.set(activeTerminalId, { id, cwd, launchCommand: action.command, label: action.label });
           return next;
         });
       }
     },
-    [activeTerminalId, activeTerminal],
+    [activeTerminal, activeTerminalId],
   );
 
   const activeSplitPane = activeTerminalId ? splitPanes.get(activeTerminalId) || null : null;
@@ -221,7 +310,6 @@ export function App() {
     [handleNewSession],
   );
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (!e.metaKey) return;
@@ -246,11 +334,63 @@ export function App() {
         overflow: "hidden",
       }}
     >
-      <TitleBar theme={theme} onToggleTheme={toggleTheme} />
+      <TitleBar
+        theme={theme}
+        providers={providers}
+        selectedProvider={selectedProvider}
+        onSelectProvider={handleSelectProvider}
+        onToggleTheme={toggleTheme}
+      />
       <UpdateBanner />
+      {providerBanner && (
+        <div
+          style={{
+            padding: "8px 16px",
+            background: "var(--bg-surface)",
+            borderBottom: "1px solid var(--border)",
+            fontSize: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span style={{ color: "var(--text-secondary)", flex: 1 }}>{providerBanner.message}</span>
+          {providerBanner.kind === "install" && (
+            <button
+              onClick={() => void handleInstallSelectedProvider()}
+              disabled={installProvider.isPending}
+              style={{
+                background: "var(--accent)",
+                color: "#000",
+                border: "none",
+                borderRadius: "var(--radius-full)",
+                padding: "4px 12px",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                cursor: installProvider.isPending ? "default" : "pointer",
+                fontFamily: "var(--font-sans)",
+              }}
+            >
+              {installProvider.isPending ? "Installing..." : "Install"}
+            </button>
+          )}
+          <button
+            onClick={() => setProviderBanner(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              fontSize: "0.7rem",
+              padding: "2px 4px",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        {/* Main area: either terminals or the config editor */}
         {selectedConfig && !editorFullscreen ? (
           <div
             style={{
@@ -261,6 +401,7 @@ export function App() {
             }}
           >
             <ConfigEditor
+              provider={selectedProvider}
               kind={selectedConfig.kind}
               scope={selectedConfig.scope}
               name={selectedConfig.name}
@@ -272,169 +413,165 @@ export function App() {
             />
           </div>
         ) : (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ flex: 1, display: "flex" }}>
-            {/* Main terminal (Claude) */}
-            <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
-              {terminals.length === 0 ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    flexDirection: "column",
-                    gap: 16,
-                  }}
-                >
-                  <span style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
-                    Select a session or create a new one
-                  </span>
-                  <button
-                    onClick={() => setShowNewSession(true)}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <div style={{ flex: 1, display: "flex" }}>
+              <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                {terminals.length === 0 ? (
+                  <div
                     style={{
-                      background: "transparent",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-full)",
-                      padding: "8px 20px",
-                      fontSize: "0.8125rem",
-                      fontWeight: 500,
-                      color: "var(--text-secondary)",
-                      cursor: "pointer",
-                      fontFamily: "var(--font-sans)",
-                      transition: "all 200ms var(--ease-spring)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      flexDirection: "column",
+                      gap: 16,
                     }}
                   >
-                    New Session
-                  </button>
-                </div>
-              ) : (
-                terminals.map((t) => (
-                  <TerminalView
-                    key={t.terminalId}
-                    sessionId={t.terminalId}
-                    cwd={t.cwd}
-                    isActive={t.terminalId === activeTerminalId}
-                    resumeSessionId={t.resumeSessionId}
-                    theme={theme}
-                  />
-                ))
-              )}
-            </div>
+                    <span style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
+                      Select a session or create a new one
+                    </span>
+                    <button
+                      onClick={() => setShowNewSession(true)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius-full)",
+                        padding: "8px 20px",
+                        fontSize: "0.8125rem",
+                        fontWeight: 500,
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-sans)",
+                        transition: "all 200ms var(--ease-spring)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.color = "var(--text-primary)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.color = "var(--text-secondary)";
+                      }}
+                    >
+                      New Session
+                    </button>
+                  </div>
+                ) : (
+                  terminals.map((terminal) => (
+                    <TerminalView
+                      key={terminal.terminalId}
+                      sessionId={terminal.terminalId}
+                      cwd={terminal.cwd}
+                      isActive={terminal.terminalId === activeTerminalId}
+                      launchCommand={terminal.startupCommand}
+                      theme={theme}
+                    />
+                  ))
+                )}
+              </div>
 
-            {/* Split panes (per-terminal shell commands). All panes stay
-                mounted across session switches; only the active terminal's
-                pane is visible. */}
-            {splitPanes.size > 0 && (
-              <>
-                <div
-                  style={{
-                    width: activeSplitPane ? 1 : 0,
-                    background: "var(--border)",
-                    flexShrink: 0,
-                  }}
-                />
-                <div
-                  style={{
-                    width: activeSplitPane ? "40%" : 0,
-                    minWidth: activeSplitPane ? 200 : 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                  }}
-                >
-                  {Array.from(splitPanes.entries()).map(([termId, pane]) => {
-                    const isActive = termId === activeTerminalId;
-                    return (
-                      <div
-                        key={pane.id}
-                        style={{
-                          display: isActive ? "flex" : "none",
-                          flexDirection: "column",
-                          flex: 1,
-                          minHeight: 0,
-                        }}
-                      >
+              {splitPanes.size > 0 && (
+                <>
+                  <div
+                    style={{
+                      width: activeSplitPane ? 1 : 0,
+                      background: "var(--border)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: activeSplitPane ? "40%" : 0,
+                      minWidth: activeSplitPane ? 200 : 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {Array.from(splitPanes.entries()).map(([termId, pane]) => {
+                      const isActive = termId === activeTerminalId;
+                      return (
                         <div
+                          key={pane.id}
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "4px 8px 4px 12px",
-                            background: "var(--bg)",
-                            borderBottom: "1px solid var(--border)",
-                            flexShrink: 0,
+                            display: isActive ? "flex" : "none",
+                            flexDirection: "column",
+                            flex: 1,
+                            minHeight: 0,
                           }}
                         >
-                          <span
+                          <div
                             style={{
-                              fontSize: "0.7rem",
-                              fontWeight: 500,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.08em",
-                              color: "var(--text-muted)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "4px 8px 4px 12px",
+                              background: "var(--bg)",
+                              borderBottom: "1px solid var(--border)",
+                              flexShrink: 0,
                             }}
                           >
-                            {pane.label}
-                          </span>
-                          <button
-                            onClick={handleCloseSplit}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "var(--text-muted)",
-                              cursor: "pointer",
-                              fontSize: "0.75rem",
-                              padding: "2px 6px",
-                              borderRadius: "var(--radius-sm)",
-                              transition: "color 150ms",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.color = "var(--text-primary)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = "var(--text-muted)";
-                            }}
-                          >
-                            ✕
-                          </button>
+                            <span
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: 500,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              {pane.label}
+                            </span>
+                            <button
+                              onClick={handleCloseSplit}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: "var(--text-muted)",
+                                cursor: "pointer",
+                                fontSize: "0.75rem",
+                                padding: "2px 6px",
+                                borderRadius: "var(--radius-sm)",
+                                transition: "color 150ms",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = "var(--text-primary)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = "var(--text-muted)";
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <div style={{ flex: 1, position: "relative" }}>
+                            <TerminalView
+                              sessionId={pane.id}
+                              cwd={pane.cwd}
+                              isActive={isActive}
+                              launchCommand={pane.launchCommand}
+                              theme={theme}
+                            />
+                          </div>
                         </div>
-                        <div style={{ flex: 1, position: "relative" }}>
-                          <TerminalView
-                            sessionId={pane.id}
-                            cwd={pane.cwd}
-                            isActive={isActive}
-                            shellCommand={pane.command}
-                            theme={theme}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+            <StatusBar
+              session={activeSessionForStatus}
+              unreadCount={unreadCount}
+              bottomTerminalOpen={showBottomTerminal}
+              onToggleBottomTerminal={() => setShowBottomTerminal((prev) => !prev)}
+            />
+            <BottomTerminal
+              isOpen={showBottomTerminal}
+              onToggle={() => setShowBottomTerminal(false)}
+              theme={theme}
+            />
           </div>
-          <StatusBar
-            session={activeSessionForStatus}
-            unreadCount={unreadCount}
-            bottomTerminalOpen={showBottomTerminal}
-            onToggleBottomTerminal={() => setShowBottomTerminal((prev) => !prev)}
-          />
-          <BottomTerminal
-            isOpen={showBottomTerminal}
-            onToggle={() => setShowBottomTerminal(false)}
-            theme={theme}
-          />
-        </div>
         )}
 
         {selectedConfig && !editorFullscreen && (
@@ -456,7 +593,6 @@ export function App() {
           />
         )}
 
-        {/* Right sidebar */}
         <div
           style={{
             width: selectedConfig && !editorFullscreen ? sidebarWidth : 340,
@@ -478,11 +614,13 @@ export function App() {
           >
             <NewSessionDialog
               isOpen={showNewSession}
+              provider={currentProvider}
               onClose={() => setShowNewSession(false)}
               onCreate={handleNewSession}
             />
             <SessionPanel
               sessions={sessions}
+              selectedProvider={selectedProvider}
               terminals={terminals}
               activeTerminalId={activeTerminalId}
               unreadByTerminal={unreadByTerminal}
@@ -501,6 +639,7 @@ export function App() {
           <div style={{ height: "45%", display: "flex", flexDirection: "column", minHeight: 200 }}>
             <Toolkit
               session={activeSessionForStatus}
+              provider={activeTerminal?.provider || selectedProvider}
               onRunAction={handleRunAction}
               onShowWorktrees={() => setShowWorktrees(true)}
             />
@@ -525,6 +664,7 @@ export function App() {
             }}
           >
             <ConfigEditor
+              provider={selectedProvider}
               kind={selectedConfig.kind}
               scope={selectedConfig.scope}
               name={selectedConfig.name}

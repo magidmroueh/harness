@@ -1,3 +1,5 @@
+export type ProviderId = "claude" | "codex" | "cursor";
+
 export interface AttentionEvent {
   id: string;
   terminalId: string;
@@ -9,6 +11,7 @@ export interface AttentionEvent {
 export interface Session {
   id: string;
   pid: number;
+  provider: ProviderId;
   label: string;
   name: string;
   cwd: string;
@@ -28,6 +31,18 @@ export interface Worktree {
   branch: string;
   head: string;
   isMain: boolean;
+}
+
+export interface ProviderStatus {
+  id: ProviderId;
+  label: string;
+  binary: string;
+  installed: boolean;
+  historySupported: boolean;
+  configSupported: boolean;
+  installCommand?: string;
+  startCommand: string;
+  resumeSupported: boolean;
 }
 
 export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
@@ -67,9 +82,17 @@ export interface HarnessAPI {
   };
   sessions: {
     discover: () => Promise<Session[]>;
-    listAll: () => Promise<Session[]>;
+    listAll: (provider?: ProviderId) => Promise<Session[]>;
     delete: (opts: { cwd: string; sessionId: string }) => Promise<boolean>;
     detectPM: (cwd: string) => Promise<"npm" | "yarn" | "pnpm" | "bun">;
+  };
+  providers: {
+    list: () => Promise<ProviderStatus[]>;
+    install: (id: ProviderId) => Promise<{ ok: boolean; error?: string }>;
+    launchCommand: (
+      id: ProviderId,
+      resumeSessionId?: string,
+    ) => Promise<string>;
   };
   worktrees: {
     list: (cwd: string) => Promise<Worktree[]>;
@@ -113,14 +136,16 @@ export interface HarnessAPI {
     branch: (cwd: string) => Promise<string>;
   };
   config: {
-    list: (cwd: string | null) => Promise<ConfigEntry[]>;
+    list: (provider: ProviderId, cwd: string | null) => Promise<ConfigEntry[]>;
     read: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,
       cwd: string | null,
     ) => Promise<ConfigFileDetail>;
     write: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,
@@ -129,24 +154,28 @@ export interface HarnessAPI {
       body: string,
     ) => Promise<void>;
     create: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,
       cwd: string | null,
     ) => Promise<ConfigFileDetail>;
     remove: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,
       cwd: string | null,
     ) => Promise<void>;
     reveal: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,
       cwd: string | null,
     ) => Promise<void>;
     openExternal: (
+      provider: ProviderId,
       kind: ConfigKind,
       scope: ConfigScope,
       name: string,

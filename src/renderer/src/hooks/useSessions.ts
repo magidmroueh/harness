@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Session } from "../types";
+import { ProviderId, Session } from "../types";
 
-export function useSessions() {
+export function useSessions(provider: ProviderId = "claude") {
   return useQuery<Session[]>({
-    queryKey: ["sessions"],
-    queryFn: () => window.api.sessions.listAll(),
+    queryKey: ["sessions", provider],
+    queryFn: () => window.api.sessions.listAll(provider),
     refetchInterval: 5000,
   });
 }
@@ -16,9 +16,8 @@ export function useDeleteSession() {
     mutationFn: (session: Session) =>
       window.api.sessions.delete({ cwd: session.cwd, sessionId: session.sessionId }),
     onMutate: async (session) => {
-      // Optimistic update — remove from cache immediately
       await queryClient.cancelQueries({ queryKey: ["sessions"] });
-      queryClient.setQueryData<Session[]>(["sessions"], (old) =>
+      queryClient.setQueriesData<Session[]>({ queryKey: ["sessions"] }, (old) =>
         old?.filter((s) => s.sessionId !== session.sessionId),
       );
     },

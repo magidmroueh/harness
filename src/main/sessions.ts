@@ -1,4 +1,7 @@
-import { execSync } from "child_process";
+import { execSync, execFile } from "child_process";
+import { createHash } from "crypto";
+import { promisify } from "util";
+import type { ProviderId } from "./providers";
 import {
   existsSync,
   readdirSync,
@@ -15,6 +18,7 @@ import { createInterface } from "readline";
 export interface Session {
   id: string;
   pid: number;
+  provider: ProviderId;
   label: string;
   name: string;
   cwd: string;
@@ -32,6 +36,11 @@ export interface Session {
 const CLAUDE_DIR = join(homedir(), ".claude");
 const SESSIONS_DIR = join(CLAUDE_DIR, "sessions");
 const PROJECTS_DIR = join(CLAUDE_DIR, "projects");
+const CODEX_SESSIONS_DIR = join(homedir(), ".codex", "sessions");
+const CURSOR_CHATS_DIR = join(homedir(), ".cursor", "chats");
+const CURSOR_PROJECTS_DIR = join(homedir(), ".cursor", "projects");
+
+const execFileAsync = promisify(execFile);
 
 function isProcessRunning(pid: number): boolean {
   try {
@@ -188,6 +197,7 @@ export class SessionManager {
       sessions.push({
         id: data.sessionId,
         pid: data.pid,
+        provider: "claude",
         label: meta.label || data.sessionId.slice(0, 8),
         name,
         cwd: data.cwd,
@@ -206,8 +216,15 @@ export class SessionManager {
     return sessions;
   }
 
-  /** List all recent sessions from project dirs (both running and past) */
-  async listAll(): Promise<Session[]> {
+  /** List all recent sessions for a provider (defaults to claude). */
+  async listAll(provider: ProviderId = "claude"): Promise<Session[]> {
+    if (provider === "codex") return listAllCodex();
+    if (provider === "cursor") return listAllCursor();
+    return this.listAllClaude();
+  }
+
+  /** List all recent Claude sessions from project dirs (both running and past) */
+  private async listAllClaude(): Promise<Session[]> {
     const sessions: Session[] = [];
     const runningPids = new Set<string>();
 
@@ -261,6 +278,7 @@ export class SessionManager {
               sessions.push({
                 id: sessionId,
                 pid: 0,
+                provider: "claude",
                 label: meta.label || sessionId.slice(0, 8),
                 name,
                 cwd,
@@ -326,4 +344,258 @@ export class SessionManager {
 
     return deleted;
   }
+}
+
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+/** Walk ~/.codex/sessions/YYYY/MM/DD/ to find rollout-*.jsonl files. */
+function findCodexRolloutFiles(): string[] {
+  const files: string[] = [];
+  for (const year of safeReaddir(CODEX_SESSIONS_DIR)) {
+    const yearDir = join(CODEX_SESSIONS_DIR, year);
+    for (const month of safeReaddir(yearDir)) {
+      const monthDir = join(yearDir, month);
+      for (const day of safeReaddir(monthDir)) {
+        const dayDir = join(monthDir, day);
+        for (const file of safeReaddir(dayDir)) {
+          if (file.endsWith(".jsonl")) files.push(join(dayDir, file));
+        }
+      }
+    }
+  }
+  return files;
+}
+
+function cleanLabel(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("<")) return "";
+  return trimmed.slice(0, 80);
+}
+
+interface CodexMeta {
+  id: string;
+  cwd: string;
+  branch: string;
+  startedAt: number;
+  model: string;
+  label: string;
+  lastActivity: number;
+}
+
+async function readCodexMeta(file: string): Promise<CodexMeta | null> {
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(file);
+  } catch {
+    return null;
+  }
+
+  const meta: CodexMeta = {
+    id: "",
+    cwd: "",
+    branch: "",
+    startedAt: 0,
+    model: "Codex",
+    label: "",
+    lastActivity: stat.mtimeMs,
+  };
+
+  const stream = createReadStream(file, { encoding: "utf-8" });
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+  let lineCount = 0;
+
+  try {
+    for await (const line of rl) {
+      if (lineCount > 40) break;
+      lineCount++;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.type === "session_meta" && obj.payload) {
+          meta.id = obj.payload.id || meta.id;
+          meta.cwd = obj.payload.cwd || meta.cwd;
+          meta.branch = obj.payload.git?.branch || meta.branch;
+          if (obj.payload.timestamp) {
+            meta.startedAt = Date.parse(obj.payload.timestamp) || meta.startedAt;
+          }
+        } else if (obj.type === "turn_context" && obj.payload?.model) {
+          meta.model = obj.payload.model;
+        } else if (
+          !meta.label &&
+          obj.type === "response_item" &&
+          obj.payload?.type === "message" &&
+          obj.payload?.role === "user"
+        ) {
+          const content = obj.payload.content;
+          if (Array.isArray(content)) {
+            for (const c of content) {
+              if (c?.type === "input_text" && typeof c.text === "string") {
+                const label = cleanLabel(c.text);
+                if (label) {
+                  meta.label = label;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+  } finally {
+    stream.destroy();
+  }
+
+  if (!meta.id) return null;
+  return meta;
+}
+
+async function listAllCodex(): Promise<Session[]> {
+  const files = findCodexRolloutFiles();
+  const metas = await Promise.all(files.map(readCodexMeta));
+  const sessions: Session[] = [];
+
+  for (const meta of metas) {
+    if (!meta || !meta.cwd) continue;
+    sessions.push({
+      id: meta.id,
+      pid: 0,
+      provider: "codex",
+      label: meta.label || meta.id.slice(0, 8),
+      name: basename(meta.cwd),
+      cwd: meta.cwd,
+      branch: meta.branch || getBranch(meta.cwd),
+      status: "idle",
+      model: meta.model,
+      cost: 0,
+      startedAt: meta.startedAt || meta.lastActivity,
+      lastActivity: meta.lastActivity,
+      sessionId: meta.id,
+      entrypoint: "cli",
+      packageManager: detectPackageManager(meta.cwd),
+    });
+  }
+
+  sessions.sort((a, b) => b.lastActivity - a.lastActivity);
+  return sessions;
+}
+
+/**
+ * Cursor stores chats under `~/.cursor/chats/<md5(cwd)>/<chatId>/store.db`.
+ * To enumerate sessions we walk `~/.cursor/projects/<slug>/` to learn about
+ * workspaces Cursor has seen, reconstruct the absolute cwd from the slug,
+ * md5 it, and read each chat folder under that hash.
+ */
+function resolveCursorProjectSlug(slug: string): string | null {
+  // Hyphens in a slug may represent either path separators or literal `-` in
+  // a path segment. DFS: at each `-` try `/` (if the accumulated prefix
+  // exists) before falling back to a literal hyphen.
+  function dfs(parent: string, seg: string, rest: string): string | null {
+    if (!rest) {
+      const full = `${parent}/${seg}`;
+      return existsSync(full) ? full : null;
+    }
+    if (rest[0] === "-") {
+      const candidate = `${parent}/${seg}`;
+      if (existsSync(candidate)) {
+        const r = dfs(candidate, "", rest.slice(1));
+        if (r) return r;
+      }
+      return dfs(parent, seg + "-", rest.slice(1));
+    }
+    return dfs(parent, seg + rest[0], rest.slice(1));
+  }
+  return dfs("", "", slug);
+}
+
+interface CursorChatMeta {
+  agentId: string;
+  name?: string;
+  mode?: string;
+  createdAt?: number;
+  lastUsedModel?: string;
+}
+
+async function readCursorChatMeta(dbPath: string): Promise<CursorChatMeta | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "/usr/bin/sqlite3",
+      [dbPath, "SELECT value FROM meta LIMIT 1;"],
+      { maxBuffer: 1_000_000 },
+    );
+    const hex = stdout.trim();
+    if (!hex) return null;
+    const json = Buffer.from(hex, "hex").toString("utf-8");
+    const parsed = JSON.parse(json);
+    if (!parsed?.agentId) return null;
+    return parsed as CursorChatMeta;
+  } catch {
+    return null;
+  }
+}
+
+async function readChatMtime(dbPath: string): Promise<number> {
+  try {
+    return statSync(dbPath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+async function listAllCursor(): Promise<Session[]> {
+  const workspaces = safeReaddir(CURSOR_PROJECTS_DIR)
+    .map(resolveCursorProjectSlug)
+    .filter((cwd): cwd is string => cwd !== null)
+    .map((cwd) => {
+      const hash = createHash("md5").update(cwd).digest("hex");
+      return { cwd, chatDir: join(CURSOR_CHATS_DIR, hash) };
+    });
+
+  const sessions: Session[] = [];
+  await Promise.all(
+    workspaces.map(async ({ cwd, chatDir }) => {
+      const chatIds = safeReaddir(chatDir);
+      if (chatIds.length === 0) return;
+
+      const name = basename(cwd);
+      const branch = getBranch(cwd);
+      const packageManager = detectPackageManager(cwd);
+
+      const dbPaths = chatIds.map((id) => join(chatDir, id, "store.db"));
+      const [metas, mtimes] = await Promise.all([
+        Promise.all(dbPaths.map(readCursorChatMeta)),
+        Promise.all(dbPaths.map(readChatMtime)),
+      ]);
+
+      for (let i = 0; i < metas.length; i++) {
+        const meta = metas[i];
+        if (!meta) continue;
+        const mtime = mtimes[i];
+        sessions.push({
+          id: meta.agentId,
+          pid: 0,
+          provider: "cursor",
+          label: meta.name || meta.agentId.slice(0, 8),
+          name,
+          cwd,
+          branch,
+          status: "idle",
+          model: meta.lastUsedModel || "Cursor",
+          cost: 0,
+          startedAt: meta.createdAt || mtime,
+          lastActivity: mtime,
+          sessionId: meta.agentId,
+          entrypoint: "cli",
+          packageManager,
+        });
+      }
+    }),
+  );
+
+  sessions.sort((a, b) => b.lastActivity - a.lastActivity);
+  return sessions;
 }

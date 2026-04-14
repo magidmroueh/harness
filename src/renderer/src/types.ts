@@ -1,6 +1,9 @@
+export type ProviderId = "claude" | "codex" | "cursor";
+
 export interface Session {
   id: string;
   pid: number;
+  provider: ProviderId;
   label: string;
   name: string;
   cwd: string;
@@ -20,6 +23,18 @@ export interface Worktree {
   branch: string;
   head: string;
   isMain: boolean;
+}
+
+export interface ProviderStatus {
+  id: ProviderId;
+  label: string;
+  binary: string;
+  installed: boolean;
+  historySupported: boolean;
+  configSupported: boolean;
+  installCommand?: string;
+  startCommand: string;
+  resumeSupported: boolean;
 }
 
 export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
@@ -58,16 +73,18 @@ export interface ToolkitAction {
   IconComponent?: React.ForwardRefExoticComponent<
     { size?: number } & React.RefAttributes<IconHandle>
   >;
-  mode: "claude" | "shell" | "ui";
+  mode: "agent" | "shell" | "ui";
   command: string;
 }
 
 /** A terminal instance — decoupled from session IDs */
 export interface TerminalInstance {
   terminalId: string;
+  provider: ProviderId;
   cwd: string;
   projectName: string;
   packageManager: "npm" | "yarn" | "pnpm" | "bun";
+  startupCommand?: string;
   resumeSessionId?: string; // set only when resuming an existing session
 }
 

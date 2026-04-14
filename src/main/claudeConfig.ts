@@ -14,8 +14,11 @@ import { join, dirname } from "path";
 import { homedir } from "os";
 import { shell } from "electron";
 
+import type { ProviderId } from "./providers";
+
 export type ConfigKind = "skill" | "agent" | "command" | "claudemd";
 export type ConfigScope = "global" | "project";
+export type ConfigProvider = ProviderId;
 
 export type ConfigEntry = {
   kind: ConfigKind;
@@ -44,19 +47,34 @@ function validateName(name: string): void {
   }
 }
 
-function globalRoot(): string {
-  return join(homedir(), ".claude");
+const PROVIDER_DIR: Record<ConfigProvider, string> = {
+  claude: ".claude",
+  codex: ".codex",
+  cursor: ".cursor",
+};
+
+function providerGlobalDir(provider: ConfigProvider): string {
+  return join(homedir(), PROVIDER_DIR[provider]);
 }
 
-/**
- * Returns the root directory for a given scope. For `claudemd` project scope,
- * the caller must special-case since CLAUDE.md lives at `<cwd>/CLAUDE.md`
- * (not under `.claude/`).
- */
-function scopeRoot(scope: ConfigScope, cwd: string | null): string {
-  if (scope === "global") return globalRoot();
+function providerProjectDir(provider: ConfigProvider, cwd: string): string {
+  return join(cwd, PROVIDER_DIR[provider]);
+}
+
+function instructionsFilename(provider: ConfigProvider): string {
+  return provider === "claude" ? "CLAUDE.md" : "AGENTS.md";
+}
+
+// Cursor is the odd one out: `skills-cursor/` globally but `skills/` per project.
+function skillsSubdir(provider: ConfigProvider, scope: ConfigScope): string {
+  if (provider === "cursor" && scope === "global") return "skills-cursor";
+  return "skills";
+}
+
+function scopeRoot(provider: ConfigProvider, scope: ConfigScope, cwd: string | null): string {
+  if (scope === "global") return providerGlobalDir(provider);
   if (!cwd) throw new Error("cwd required for project scope");
-  return join(cwd, ".claude");
+  return providerProjectDir(provider, cwd);
 }
 
 /**
@@ -181,20 +199,25 @@ function listDirs(dir: string): string[] {
 }
 
 function resolvePath(
+  provider: ConfigProvider,
   kind: ConfigKind,
   scope: ConfigScope,
   name: string,
   cwd: string | null,
 ): { file: string; folder?: string } {
   if (kind === "claudemd") {
-    if (scope === "global") return { file: join(globalRoot(), "CLAUDE.md") };
-    if (!cwd) throw new Error("cwd required for project CLAUDE.md");
-    return { file: join(cwd, "CLAUDE.md") };
+    const file = instructionsFilename(provider);
+    if (scope === "global") return { file: join(providerGlobalDir(provider), file) };
+    if (!cwd) throw new Error(`cwd required for project ${file}`);
+    return { file: join(cwd, file) };
+  }
+  if (provider !== "claude" && (kind === "agent" || kind === "command")) {
+    throw new Error(`${provider} does not support ${kind}s`);
   }
   validateName(name);
-  const root = scopeRoot(scope, cwd);
+  const root = scopeRoot(provider, scope, cwd);
   if (kind === "skill") {
-    const folder = join(root, "skills", name);
+    const folder = join(root, skillsSubdir(provider, scope), name);
     return { file: join(folder, "SKILL.md"), folder };
   }
   if (kind === "agent") {
@@ -238,14 +261,20 @@ function readEntry(
   }
 }
 
-function listScope(scope: ConfigScope, cwd: string | null): ConfigEntry[] {
+function listScope(
+  provider: ConfigProvider,
+  scope: ConfigScope,
+  cwd: string | null,
+): ConfigEntry[] {
   const entries: ConfigEntry[] = [];
   if (scope === "project" && !cwd) return entries;
 
-  const root = scopeRoot(scope, cwd);
+  const root = scopeRoot(provider, scope, cwd);
 
-  const skillsDir = join(root, "skills");
+  const skillsDir = join(root, skillsSubdir(provider, scope));
   for (const name of listDirs(skillsDir)) {
+    // Codex ships built-in skills under `skills/.system/*` — hide them.
+    if (provider === "codex" && name === ".system") continue;
     if (!NAME_RE.test(name)) continue;
     const folder = join(skillsDir, name);
     const file = join(folder, "SKILL.md");
@@ -254,30 +283,37 @@ function listScope(scope: ConfigScope, cwd: string | null): ConfigEntry[] {
     if (e) entries.push(e);
   }
 
-  const agentsDir = join(root, "agents");
-  for (const f of listMarkdown(agentsDir)) {
-    const name = f.replace(/\.md$/, "");
-    if (!NAME_RE.test(name)) continue;
-    const e = readEntry("agent", scope, name, join(agentsDir, f));
-    if (e) entries.push(e);
+  if (provider === "claude") {
+    const agentsDir = join(root, "agents");
+    for (const f of listMarkdown(agentsDir)) {
+      const name = f.replace(/\.md$/, "");
+      if (!NAME_RE.test(name)) continue;
+      const e = readEntry("agent", scope, name, join(agentsDir, f));
+      if (e) entries.push(e);
+    }
+
+    const commandsDir = join(root, "commands");
+    for (const f of listMarkdown(commandsDir)) {
+      const name = f.replace(/\.md$/, "");
+      if (!NAME_RE.test(name)) continue;
+      const e = readEntry("command", scope, name, join(commandsDir, f));
+      if (e) entries.push(e);
+    }
   }
 
-  const commandsDir = join(root, "commands");
-  for (const f of listMarkdown(commandsDir)) {
-    const name = f.replace(/\.md$/, "");
-    if (!NAME_RE.test(name)) continue;
-    const e = readEntry("command", scope, name, join(commandsDir, f));
-    if (e) entries.push(e);
-  }
-
-  const claudemdPath =
-    scope === "global" ? join(globalRoot(), "CLAUDE.md") : cwd ? join(cwd, "CLAUDE.md") : null;
-  if (claudemdPath && existsSync(claudemdPath)) {
+  const instructionsFile = instructionsFilename(provider);
+  const instructionsPath =
+    scope === "global"
+      ? join(providerGlobalDir(provider), instructionsFile)
+      : cwd
+        ? join(cwd, instructionsFile)
+        : null;
+  if (instructionsPath && existsSync(instructionsPath)) {
     entries.push({
       kind: "claudemd",
       scope,
-      name: "CLAUDE.md",
-      path: claudemdPath,
+      name: instructionsFile,
+      path: instructionsPath,
       frontmatter: {},
     });
   }
@@ -320,7 +356,9 @@ export class ConfigManager extends EventEmitter {
 
   constructor() {
     super();
-    this.ensureRecursiveWatch(globalRoot());
+    this.ensureRecursiveWatch(providerGlobalDir("claude"));
+    this.ensureRecursiveWatch(providerGlobalDir("codex"));
+    this.ensureRecursiveWatch(providerGlobalDir("cursor"));
   }
 
   private ensureRecursiveWatch(root: string): void {
@@ -342,38 +380,41 @@ export class ConfigManager extends EventEmitter {
   }
 
   /**
-   * Watch only the project's `.claude/` tree plus a non-recursive watcher on
-   * the project root filtered to CLAUDE.md — avoids scanning node_modules and
-   * other large project subtrees.
+   * Watch only the project's provider config tree plus a non-recursive
+   * watcher on the project root filtered to the instructions file —
+   * avoids scanning node_modules and other large subtrees.
    */
   watchProject(cwd: string): void {
     if (!cwd) return;
-    this.ensureRecursiveWatch(join(cwd, ".claude"));
+    this.ensureRecursiveWatch(providerProjectDir("claude", cwd));
+    this.ensureRecursiveWatch(providerProjectDir("codex", cwd));
+    this.ensureRecursiveWatch(providerProjectDir("cursor", cwd));
     if (this.watchers.has(cwd)) return;
     try {
       const w = watch(cwd, { recursive: false }, (_event, filename) => {
-        if (filename === "CLAUDE.md") this.scheduleEmit();
+        if (filename === "CLAUDE.md" || filename === "AGENTS.md") this.scheduleEmit();
       });
       w.on("error", () => {});
       this.watchers.set(cwd, w);
     } catch {}
   }
 
-  async list(cwd: string | null): Promise<ConfigEntry[]> {
+  async list(provider: ConfigProvider, cwd: string | null): Promise<ConfigEntry[]> {
     if (cwd) this.watchProject(cwd);
     const results: ConfigEntry[] = [];
-    results.push(...listScope("global", null));
-    if (cwd) results.push(...listScope("project", cwd));
+    results.push(...listScope(provider, "global", null));
+    if (cwd) results.push(...listScope(provider, "project", cwd));
     return results;
   }
 
   async read(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
     cwd: string | null,
   ): Promise<ConfigFileDetail> {
-    const { file, folder } = resolvePath(kind, scope, name, cwd);
+    const { file, folder } = resolvePath(provider, kind, scope, name, cwd);
     const text = readFileSync(file, "utf-8");
     const { frontmatter, body } = parseFrontmatter(text);
     const description =
@@ -403,6 +444,7 @@ export class ConfigManager extends EventEmitter {
   }
 
   async write(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
@@ -410,7 +452,7 @@ export class ConfigManager extends EventEmitter {
     frontmatter: Record<string, unknown>,
     body: string,
   ): Promise<void> {
-    const { file } = resolvePath(kind, scope, name, cwd);
+    const { file } = resolvePath(provider, kind, scope, name, cwd);
     ensureDir(file);
     let content: string;
     if (kind === "claudemd") {
@@ -426,27 +468,29 @@ export class ConfigManager extends EventEmitter {
   }
 
   async create(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
     cwd: string | null,
   ): Promise<ConfigFileDetail> {
-    const { file } = resolvePath(kind, scope, name, cwd);
+    const { file } = resolvePath(provider, kind, scope, name, cwd);
     if (existsSync(file)) {
       throw new Error(`Already exists: ${file}`);
     }
     const tpl = templateFor(kind, name);
-    await this.write(kind, scope, name, cwd, tpl.frontmatter, tpl.body);
-    return this.read(kind, scope, name, cwd);
+    await this.write(provider, kind, scope, name, cwd, tpl.frontmatter, tpl.body);
+    return this.read(provider, kind, scope, name, cwd);
   }
 
   async remove(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
     cwd: string | null,
   ): Promise<void> {
-    const { file, folder } = resolvePath(kind, scope, name, cwd);
+    const { file, folder } = resolvePath(provider, kind, scope, name, cwd);
     if (kind === "skill" && folder) {
       rmSync(folder, { recursive: true, force: true });
       return;
@@ -455,23 +499,25 @@ export class ConfigManager extends EventEmitter {
   }
 
   async reveal(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
     cwd: string | null,
   ): Promise<void> {
-    const { file, folder } = resolvePath(kind, scope, name, cwd);
+    const { file, folder } = resolvePath(provider, kind, scope, name, cwd);
     const target = kind === "skill" && folder ? folder : file;
     shell.showItemInFolder(target);
   }
 
   async openExternal(
+    provider: ConfigProvider,
     kind: ConfigKind,
     scope: ConfigScope,
     name: string,
     cwd: string | null,
   ): Promise<void> {
-    const { file } = resolvePath(kind, scope, name, cwd);
+    const { file } = resolvePath(provider, kind, scope, name, cwd);
     await shell.openPath(file);
   }
 

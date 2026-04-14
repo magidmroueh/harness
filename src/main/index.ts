@@ -4,8 +4,14 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { SessionManager, detectPackageManager } from "./sessions";
 import { WorktreeManager } from "./worktrees";
 import { AttentionDetector } from "./notifications";
-import { ConfigManager, type ConfigKind, type ConfigScope } from "./claudeConfig";
+import {
+  ConfigManager,
+  type ConfigKind,
+  type ConfigScope,
+  type ConfigProvider,
+} from "./claudeConfig";
 import { checkForUpdates, downloadAndInstall } from "./updater";
+import { ProviderManager, EXTRA_PATH, type ProviderId } from "./providers";
 
 let pty: typeof import("node-pty") | null = null;
 try {
@@ -18,6 +24,7 @@ let mainWindow: BrowserWindow | null = null;
 const ptys = new Map<string, import("node-pty").IPty>();
 const sessions = new SessionManager();
 const worktrees = new WorktreeManager();
+const providers = new ProviderManager();
 let autoCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 let autoCheckInterval: ReturnType<typeof setInterval> | null = null;
 const detector = new AttentionDetector();
@@ -90,11 +97,13 @@ ipcMain.handle(
     const shell = cmd || process.env.SHELL || "/bin/zsh";
     const shellArgs = args || [];
 
+    const currentPath = process.env.PATH || "";
     const p = pty.spawn(shell, shellArgs, {
       name: "xterm-256color",
       cwd: cwd || process.env.HOME || "/",
       env: {
         ...process.env,
+        PATH: currentPath ? `${EXTRA_PATH}:${currentPath}` : EXTRA_PATH,
         COLORTERM: "truecolor",
         TERM_PROGRAM: "Harness",
         TERM_PROGRAM_VERSION: app.getVersion(),
@@ -175,9 +184,23 @@ ipcMain.handle("dialog:open-folder", async () => {
 ipcMain.handle("app:version", () => app.getVersion());
 
 ipcMain.handle("sessions:discover", () => sessions.discover());
-ipcMain.handle("sessions:list-all", () => sessions.listAll());
+ipcMain.handle(
+  "sessions:list-all",
+  (_, opts?: { provider?: "claude" | "codex" | "cursor" }) =>
+    sessions.listAll(opts?.provider ?? "claude"),
+);
 ipcMain.handle("sessions:delete", (_, opts) => sessions.delete(opts));
 ipcMain.handle("sessions:detect-pm", (_, { cwd }) => detectPackageManager(cwd));
+
+// --- Provider IPC ---
+
+ipcMain.handle("providers:list", () => providers.list());
+ipcMain.handle("providers:install", (_, { id }: { id: ProviderId }) => providers.install(id));
+ipcMain.handle(
+  "providers:launch-command",
+  (_, { id, resumeSessionId }: { id: ProviderId; resumeSessionId?: string }) =>
+    providers.getLaunchCommand(id, resumeSessionId),
+);
 
 ipcMain.handle("git:branch", async (_, { cwd }: { cwd: string }) => {
   try {
@@ -200,62 +223,57 @@ ipcMain.handle("worktrees:remove", (_, opts) => worktrees.remove(opts));
 
 // --- Config IPC ---
 
-ipcMain.handle("config:list", (_, { cwd }: { cwd: string | null }) => configManager.list(cwd));
+interface ConfigCall {
+  provider?: ConfigProvider;
+  kind: ConfigKind;
+  scope: ConfigScope;
+  name: string;
+  cwd: string | null;
+}
+
+const configProvider = (p?: ConfigProvider): ConfigProvider => p ?? "claude";
+
 ipcMain.handle(
-  "config:read",
-  (
-    _,
-    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
-  ) => configManager.read(kind, scope, name, cwd),
+  "config:list",
+  (_, { provider, cwd }: { provider?: ConfigProvider; cwd: string | null }) =>
+    configManager.list(configProvider(provider), cwd),
+);
+ipcMain.handle("config:read", (_, opts: ConfigCall) =>
+  configManager.read(configProvider(opts.provider), opts.kind, opts.scope, opts.name, opts.cwd),
 );
 ipcMain.handle(
   "config:write",
   (
     _,
-    {
-      kind,
-      scope,
-      name,
-      cwd,
-      frontmatter,
-      body,
-    }: {
-      kind: ConfigKind;
-      scope: ConfigScope;
-      name: string;
-      cwd: string | null;
-      frontmatter: Record<string, unknown>;
-      body: string;
-    },
-  ) => configManager.write(kind, scope, name, cwd, frontmatter, body),
+    opts: ConfigCall & { frontmatter: Record<string, unknown>; body: string },
+  ) =>
+    configManager.write(
+      configProvider(opts.provider),
+      opts.kind,
+      opts.scope,
+      opts.name,
+      opts.cwd,
+      opts.frontmatter,
+      opts.body,
+    ),
 );
-ipcMain.handle(
-  "config:create",
-  (
-    _,
-    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
-  ) => configManager.create(kind, scope, name, cwd),
+ipcMain.handle("config:create", (_, opts: ConfigCall) =>
+  configManager.create(configProvider(opts.provider), opts.kind, opts.scope, opts.name, opts.cwd),
 );
-ipcMain.handle(
-  "config:remove",
-  (
-    _,
-    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
-  ) => configManager.remove(kind, scope, name, cwd),
+ipcMain.handle("config:remove", (_, opts: ConfigCall) =>
+  configManager.remove(configProvider(opts.provider), opts.kind, opts.scope, opts.name, opts.cwd),
 );
-ipcMain.handle(
-  "config:reveal",
-  (
-    _,
-    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
-  ) => configManager.reveal(kind, scope, name, cwd),
+ipcMain.handle("config:reveal", (_, opts: ConfigCall) =>
+  configManager.reveal(configProvider(opts.provider), opts.kind, opts.scope, opts.name, opts.cwd),
 );
-ipcMain.handle(
-  "config:open-external",
-  (
-    _,
-    { kind, scope, name, cwd }: { kind: ConfigKind; scope: ConfigScope; name: string; cwd: string | null },
-  ) => configManager.openExternal(kind, scope, name, cwd),
+ipcMain.handle("config:open-external", (_, opts: ConfigCall) =>
+  configManager.openExternal(
+    configProvider(opts.provider),
+    opts.kind,
+    opts.scope,
+    opts.name,
+    opts.cwd,
+  ),
 );
 
 // --- App Lifecycle ---

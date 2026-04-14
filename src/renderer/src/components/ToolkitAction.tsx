@@ -7,7 +7,7 @@ interface Props {
 }
 
 const modeColor: Record<ActionType["mode"], string> = {
-  claude: "var(--accent)",
+  agent: "var(--accent)",
   shell: "var(--dot-current)",
   ui: "var(--text-muted)",
 };

@@ -9,8 +9,7 @@ interface Props {
   sessionId: string;
   cwd?: string;
   isActive: boolean;
-  resumeSessionId?: string;
-  shellCommand?: string;
+  launchCommand?: string;
   theme?: "light" | "dark";
 }
 
@@ -64,7 +63,7 @@ const LIGHT_THEME = {
   brightWhite: "#ffffff",
 };
 
-export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellCommand, theme = "dark" }: Props) {
+export function TerminalView({ sessionId, cwd, isActive, launchCommand, theme = "dark" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -130,20 +129,13 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
           term.write("\r\n\x1b[90m[session ended]\x1b[0m\r\n");
         });
 
-        // Auto-run command after shell is ready
-        // shellCommand === undefined → launch claude; "" → plain shell; "cmd" → run cmd
+        // Auto-run command after shell is ready.
+        // "" means plain shell; any non-empty command is executed.
         setTimeout(() => {
           if (disposed) return;
-          if (shellCommand !== undefined && shellCommand !== "") {
-            window.api.terminal.write(sessionId, shellCommand + "\n");
-          } else if (shellCommand === undefined) {
-            if (resumeSessionId) {
-              window.api.terminal.write(sessionId, `claude --resume ${resumeSessionId}\n`);
-            } else {
-              window.api.terminal.write(sessionId, "claude\n");
-            }
+          if (launchCommand) {
+            window.api.terminal.write(sessionId, launchCommand + "\n");
           }
-          // shellCommand === "" → plain shell, do nothing
         }, 600);
 
         cleanupRef.current = () => {
@@ -177,7 +169,7 @@ export function TerminalView({ sessionId, cwd, isActive, resumeSessionId, shellC
       fitRef.current = null;
       window.api.terminal.kill(sessionId);
     };
-  }, [sessionId, cwd, resumeSessionId, shellCommand]);
+  }, [sessionId, cwd, launchCommand]);
 
   useEffect(() => {
     if (termRef.current) {

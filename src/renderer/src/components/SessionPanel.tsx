@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Session, TerminalInstance, PanelTab, IconHandle, ConfigSelection } from "../types";
+import { Session, TerminalInstance, PanelTab, IconHandle, ConfigSelection, ProviderId } from "../types";
 import { timeAgo } from "../utils/time";
 import { SearchIcon, PlusIcon } from "./icons";
 import { ConfigPanel } from "./ConfigPanel";
 
 interface Props {
   sessions: Session[];
+  selectedProvider: ProviderId;
   terminals: TerminalInstance[];
   activeTerminalId: string | null;
   unreadByTerminal: Map<string, number>;
@@ -29,6 +30,7 @@ interface ProjectGroup {
 
 export function SessionPanel({
   sessions,
+  selectedProvider,
   terminals,
   activeTerminalId,
   unreadByTerminal,
@@ -276,6 +278,7 @@ export function SessionPanel({
       {tab === "skills" && (
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <ConfigPanel
+            provider={selectedProvider}
             cwd={activeCwd}
             isActive={tab === "skills"}
             selected={selectedConfig}
@@ -520,34 +523,36 @@ export function SessionPanel({
                                 ✕
                               </button>
                             ) : (
-                              <button
-                                data-delete
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setConfirmDelete(session);
-                                }}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "var(--dot-error)",
-                                  cursor: "pointer",
-                                  fontSize: "0.65rem",
-                                  padding: "1px 4px",
-                                  opacity: 0,
-                                  transition: "opacity 150ms",
-                                  marginLeft: "auto",
-                                  fontFamily: "var(--font-sans)",
-                                  fontWeight: 500,
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.opacity = "1";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.opacity = "0";
-                                }}
-                              >
-                                delete
-                              </button>
+                              selectedProvider === "claude" && (
+                                <button
+                                  data-delete
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDelete(session);
+                                  }}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: "var(--dot-error)",
+                                    cursor: "pointer",
+                                    fontSize: "0.65rem",
+                                    padding: "1px 4px",
+                                    opacity: 0,
+                                    transition: "opacity 150ms",
+                                    marginLeft: "auto",
+                                    fontFamily: "var(--font-sans)",
+                                    fontWeight: 500,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.opacity = "1";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.opacity = "0";
+                                  }}
+                                >
+                                  delete
+                                </button>
+                              )
                             )}
                           </div>
                           <div

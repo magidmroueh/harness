@@ -1,12 +1,15 @@
 import { useState } from "react";
 
+import type { ProviderStatus } from "../types";
+
 interface Props {
   isOpen: boolean;
+  provider: ProviderStatus | null;
   onClose: () => void;
   onCreate: (name: string, cwd: string) => void;
 }
 
-export function NewSessionDialog({ isOpen, onClose, onCreate }: Props) {
+export function NewSessionDialog({ isOpen, provider, onClose, onCreate }: Props) {
   const [cwd, setCwd] = useState("");
 
   if (!isOpen) return null;
@@ -46,6 +49,17 @@ export function NewSessionDialog({ isOpen, onClose, onCreate }: Props) {
       >
         New Session
       </div>
+      {provider && (
+        <div
+          style={{
+            fontSize: "0.72rem",
+            color: "var(--text-secondary)",
+            marginBottom: 10,
+          }}
+        >
+          Provider: <strong style={{ color: "var(--text-primary)" }}>{provider.label}</strong>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <button

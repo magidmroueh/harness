@@ -112,6 +112,9 @@ export function StatusBar({ session, unreadCount = 0, bottomTerminalOpen = false
       <span data-tooltip="Git branch" style={{ color: "var(--dot-current)" }}>
         ⌥ {gitBranch || session.branch}
       </span>
+      <span data-tooltip="Provider" style={{ textTransform: "capitalize" }}>
+        {session.provider}
+      </span>
       <span data-tooltip="Model">{session.model.split(" ")[0]}</span>
       <span data-tooltip="Session duration" style={{ marginLeft: "auto" }}>
         {formatDuration(session.startedAt)}
