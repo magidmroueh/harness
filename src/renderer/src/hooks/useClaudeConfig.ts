@@ -1,8 +1,16 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConfigEntry, ConfigFileDetail, ConfigKind, ConfigScope } from "../types";
+import type {
+  ConfigEntry,
+  ConfigFileDetail,
+  ConfigKind,
+  ConfigScope,
+  ProviderId,
+} from "../types";
 
-export function useClaudeConfig(cwd: string | null) {
+export type ConfigProvider = ProviderId;
+
+export function useClaudeConfig(provider: ConfigProvider, cwd: string | null) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -12,20 +20,21 @@ export function useClaudeConfig(cwd: string | null) {
   }, [queryClient]);
 
   return useQuery<ConfigEntry[]>({
-    queryKey: ["claude-config", cwd],
-    queryFn: () => window.api.config.list(cwd),
+    queryKey: ["claude-config", provider, cwd],
+    queryFn: () => window.api.config.list(provider, cwd),
   });
 }
 
 export function useClaudeConfigDetail(
+  provider: ConfigProvider,
   kind: ConfigKind | null,
   scope: ConfigScope | null,
   name: string | null,
   cwd: string | null,
 ) {
   return useQuery<ConfigFileDetail>({
-    queryKey: ["claude-config-detail", kind, scope, name, cwd],
-    queryFn: () => window.api.config.read(kind!, scope!, name!, cwd),
+    queryKey: ["claude-config-detail", provider, kind, scope, name, cwd],
+    queryFn: () => window.api.config.read(provider, kind!, scope!, name!, cwd),
     enabled: Boolean(kind && scope && name),
   });
 }

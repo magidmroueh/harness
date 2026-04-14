@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Session, ToolkitAction as ActionType } from "../types";
+import { ProviderId, Session, ToolkitAction as ActionType } from "../types";
 import { ToolkitAction } from "./ToolkitAction";
 import {
   GitPullRequestIcon,
@@ -17,6 +17,7 @@ import {
 
 interface Props {
   session: Session | null;
+  provider: ProviderId;
   onRunAction: (action: ActionType) => void;
   onShowWorktrees: () => void;
 }
@@ -42,17 +43,19 @@ interface ActionGroup {
   actions: ActionType[];
 }
 
-function buildGroups(pm: PM): ActionGroup[] {
+function buildGroups(pm: PM, provider: ProviderId): ActionGroup[] {
+  const agentLabel =
+    provider === "claude" ? "Claude" : provider === "codex" ? "Codex" : "Cursor";
   return [
     {
-      label: "Claude",
+      label: agentLabel,
       actions: [
-        { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "claude", command: "create a pull request for my changes" },
-        { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "claude", command: "commit all my changes and push to remote" },
-        { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "claude", command: "show me a summary of all changes I've made" },
-        { id: "simplify", label: "Simplify", IconComponent: SparklesIcon, mode: "claude", command: "review the code I changed for simplicity and clean it up" },
-        { id: "review", label: "Review Changes", IconComponent: ShieldCheckIcon, mode: "claude", command: "review my recent changes and suggest improvements" },
-        { id: "explain", label: "Explain Code", IconComponent: BookTextIcon, mode: "claude", command: "explain the architecture of this project" },
+        { id: "create-pr", label: "Create PR", IconComponent: GitPullRequestIcon, mode: "agent", command: "create a pull request for my changes" },
+        { id: "commit-push", label: "Commit & Push", IconComponent: GitCommitIcon, mode: "agent", command: "commit all my changes and push to remote" },
+        { id: "claude-diff", label: "Show Changes", IconComponent: EyeIcon, mode: "agent", command: "show me a summary of all changes I've made" },
+        { id: "simplify", label: "Simplify", IconComponent: SparklesIcon, mode: "agent", command: "review the code I changed for simplicity and clean it up" },
+        { id: "review", label: "Review Changes", IconComponent: ShieldCheckIcon, mode: "agent", command: "review my recent changes and suggest improvements" },
+        { id: "explain", label: "Explain Code", IconComponent: BookTextIcon, mode: "agent", command: "explain the architecture of this project" },
       ],
     },
     {
@@ -93,9 +96,9 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export function Toolkit({ session, onRunAction, onShowWorktrees }: Props) {
+export function Toolkit({ session, provider, onRunAction, onShowWorktrees }: Props) {
   const pm = session?.packageManager || "npm";
-  const groups = useMemo(() => buildGroups(pm), [pm]);
+  const groups = useMemo(() => buildGroups(pm, provider), [pm, provider]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>

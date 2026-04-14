@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { ProviderId } from "./index.d";
 
 function onIpc<T>(channel: string, cb: (payload: T) => void): () => void {
   const handler = (_: unknown, payload: T) => cb(payload);
@@ -19,11 +20,18 @@ const api = {
   },
   sessions: {
     discover: () => ipcRenderer.invoke("sessions:discover"),
-    listAll: () => ipcRenderer.invoke("sessions:list-all"),
+    listAll: (provider: ProviderId | "cursor" = "claude") =>
+      ipcRenderer.invoke("sessions:list-all", { provider }),
     delete: (opts: { cwd: string; sessionId: string }) =>
       ipcRenderer.invoke("sessions:delete", opts),
     detectPM: (cwd: string) =>
       ipcRenderer.invoke("sessions:detect-pm", { cwd }) as Promise<"npm" | "yarn" | "pnpm" | "bun">,
+  },
+  providers: {
+    list: () => ipcRenderer.invoke("providers:list"),
+    install: (id: ProviderId) => ipcRenderer.invoke("providers:install", { id }),
+    launchCommand: (id: ProviderId, resumeSessionId?: string) =>
+      ipcRenderer.invoke("providers:launch-command", { id, resumeSessionId }) as Promise<string>,
   },
   worktrees: {
     list: (cwd: string) => ipcRenderer.invoke("worktrees:list", { cwd }),
@@ -51,25 +59,61 @@ const api = {
     branch: (cwd: string) => ipcRenderer.invoke("git:branch", { cwd }) as Promise<string>,
   },
   config: {
-    list: (cwd: string | null) => ipcRenderer.invoke("config:list", { cwd }),
-    read: (kind: string, scope: string, name: string, cwd: string | null) =>
-      ipcRenderer.invoke("config:read", { kind, scope, name, cwd }),
+    list: (provider: ProviderId, cwd: string | null) =>
+      ipcRenderer.invoke("config:list", { provider, cwd }),
+    read: (
+      provider: ProviderId,
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+    ) => ipcRenderer.invoke("config:read", { provider, kind, scope, name, cwd }),
     write: (
+      provider: ProviderId,
       kind: string,
       scope: string,
       name: string,
       cwd: string | null,
       frontmatter: Record<string, unknown>,
       body: string,
-    ) => ipcRenderer.invoke("config:write", { kind, scope, name, cwd, frontmatter, body }),
-    create: (kind: string, scope: string, name: string, cwd: string | null) =>
-      ipcRenderer.invoke("config:create", { kind, scope, name, cwd }),
-    remove: (kind: string, scope: string, name: string, cwd: string | null) =>
-      ipcRenderer.invoke("config:remove", { kind, scope, name, cwd }),
-    reveal: (kind: string, scope: string, name: string, cwd: string | null) =>
-      ipcRenderer.invoke("config:reveal", { kind, scope, name, cwd }),
-    openExternal: (kind: string, scope: string, name: string, cwd: string | null) =>
-      ipcRenderer.invoke("config:open-external", { kind, scope, name, cwd }),
+    ) =>
+      ipcRenderer.invoke("config:write", {
+        provider,
+        kind,
+        scope,
+        name,
+        cwd,
+        frontmatter,
+        body,
+      }),
+    create: (
+      provider: ProviderId,
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+    ) => ipcRenderer.invoke("config:create", { provider, kind, scope, name, cwd }),
+    remove: (
+      provider: ProviderId,
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+    ) => ipcRenderer.invoke("config:remove", { provider, kind, scope, name, cwd }),
+    reveal: (
+      provider: ProviderId,
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+    ) => ipcRenderer.invoke("config:reveal", { provider, kind, scope, name, cwd }),
+    openExternal: (
+      provider: ProviderId,
+      kind: string,
+      scope: string,
+      name: string,
+      cwd: string | null,
+    ) => ipcRenderer.invoke("config:open-external", { provider, kind, scope, name, cwd }),
     onChanged: (cb: () => void) => onIpc<void>("config:changed", cb),
   },
   dialog: {

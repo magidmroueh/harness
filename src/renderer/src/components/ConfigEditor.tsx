@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ConfigKind, ConfigScope } from "../types";
-import { useClaudeConfigDetail } from "../hooks/useClaudeConfig";
+import { useClaudeConfigDetail, type ConfigProvider } from "../hooks/useClaudeConfig";
 
 interface Props {
+  provider: ConfigProvider;
   kind: ConfigKind;
   scope: ConfigScope;
   name: string;
@@ -46,6 +47,7 @@ function parseFrontmatterValue(key: string, raw: string, original: unknown): unk
 }
 
 export function ConfigEditor({
+  provider,
   kind,
   scope,
   name,
@@ -55,7 +57,7 @@ export function ConfigEditor({
   isFullscreen,
   onToggleFullscreen,
 }: Props) {
-  const { data: detail, isLoading } = useClaudeConfigDetail(kind, scope, name, cwd);
+  const { data: detail, isLoading } = useClaudeConfigDetail(provider, kind, scope, name, cwd);
   const queryClient = useQueryClient();
 
   const [formFm, setFormFm] = useState<Record<string, string>>({});
@@ -112,9 +114,11 @@ export function ConfigEditor({
     setSaving(true);
     try {
       const nextFm = buildNextFm();
-      await window.api.config.write(kind, scope, name, cwd, nextFm, formBody);
+      await window.api.config.write(provider, kind, scope, name, cwd, nextFm, formBody);
       queryClient.invalidateQueries({ queryKey: ["claude-config"] });
-      queryClient.invalidateQueries({ queryKey: ["claude-config-detail", kind, scope, name, cwd] });
+      queryClient.invalidateQueries({
+        queryKey: ["claude-config-detail", provider, kind, scope, name, cwd],
+      });
       baselineRef.current = JSON.stringify({ fm: formFm, body: formBody });
       if (pendingBack) {
         setPendingBack(false);
@@ -123,7 +127,7 @@ export function ConfigEditor({
     } finally {
       setSaving(false);
     }
-  }, [detail, isDirty, saving, buildNextFm, kind, scope, name, cwd, formBody, formFm, queryClient, pendingBack, onClose]);
+  }, [detail, isDirty, saving, buildNextFm, provider, kind, scope, name, cwd, formBody, formFm, queryClient, pendingBack, onClose]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -143,11 +147,11 @@ export function ConfigEditor({
   }, []);
 
   const handleReveal = () => {
-    void window.api.config.reveal(kind, scope, name, cwd);
+    void window.api.config.reveal(provider, kind, scope, name, cwd);
   };
 
   const handleOpenExternal = () => {
-    void window.api.config.openExternal(kind, scope, name, cwd);
+    void window.api.config.openExternal(provider, kind, scope, name, cwd);
   };
 
   const handleDelete = async () => {
@@ -157,7 +161,7 @@ export function ConfigEditor({
       deleteTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
       return;
     }
-    await window.api.config.remove(kind, scope, name, cwd);
+    await window.api.config.remove(provider, kind, scope, name, cwd);
     queryClient.invalidateQueries({ queryKey: ["claude-config"] });
     onDeleted();
   };
@@ -169,8 +173,8 @@ export function ConfigEditor({
     if (!detail || duplicating || !canDuplicate) return;
     setDuplicating(true);
     try {
-      await window.api.config.create(kind, otherScope, name, cwd);
-      await window.api.config.write(kind, otherScope, name, cwd, buildNextFm(), formBody);
+      await window.api.config.create(provider, kind, otherScope, name, cwd);
+      await window.api.config.write(provider, kind, otherScope, name, cwd, buildNextFm(), formBody);
       queryClient.invalidateQueries({ queryKey: ["claude-config"] });
       setDuplicatePrompt(false);
     } finally {

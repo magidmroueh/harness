@@ -1,29 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ConfigEntry, ConfigKind, ConfigScope, ConfigSelection } from "../types";
-import { useClaudeConfig } from "../hooks/useClaudeConfig";
+import { useClaudeConfig, type ConfigProvider } from "../hooks/useClaudeConfig";
 
 interface Props {
+  provider: ConfigProvider;
   cwd: string | null;
   isActive: boolean;
   selected: ConfigSelection | null;
   onSelect: (sel: ConfigSelection | null) => void;
 }
 
-const KIND_TABS: { id: ConfigKind; label: string }[] = [
+const CLAUDE_TABS: { id: ConfigKind; label: string }[] = [
   { id: "skill", label: "Skills" },
   { id: "agent", label: "Agents" },
   { id: "command", label: "Commands" },
   { id: "claudemd", label: "CLAUDE.md" },
 ];
 
+const NON_CLAUDE_TABS: { id: ConfigKind; label: string }[] = [
+  { id: "skill", label: "Skills" },
+  { id: "claudemd", label: "AGENTS.md" },
+];
+
+function instructionsName(provider: ConfigProvider): string {
+  return provider === "claude" ? "CLAUDE.md" : "AGENTS.md";
+}
+
 function basename(path: string): string {
   const parts = path.split("/").filter(Boolean);
   return parts[parts.length - 1] || path;
 }
 
-export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
+export function ConfigPanel({ provider, cwd, isActive, selected, onSelect }: Props) {
+  const kindTabs = provider === "claude" ? CLAUDE_TABS : NON_CLAUDE_TABS;
+  const instrName = instructionsName(provider);
   const [activeKind, setActiveKind] = useState<ConfigKind>("skill");
+
+  useEffect(() => {
+    if (!kindTabs.some((t) => t.id === activeKind)) {
+      setActiveKind("skill");
+      onSelect(null);
+    }
+  }, [kindTabs, activeKind, onSelect]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [newProject, setNewProject] = useState(false);
@@ -33,7 +52,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
-  const { data: entries = [] } = useClaudeConfig(cwd);
+  const { data: entries = [] } = useClaudeConfig(provider, cwd);
 
   useEffect(() => {
     if (!isActive) return;
@@ -83,9 +102,9 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
       if (activeKind === "claudemd") {
         setCreating(true);
         try {
-          await window.api.config.create("claudemd", scope, "CLAUDE.md", cwd);
+          await window.api.config.create(provider, "claudemd", scope, instrName, cwd);
           queryClient.invalidateQueries({ queryKey: ["claude-config"] });
-          onSelect({ kind: "claudemd", scope, name: "CLAUDE.md" });
+          onSelect({ kind: "claudemd", scope, name: instrName });
         } finally {
           setCreating(false);
           setNewProject(false);
@@ -97,7 +116,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
       if (!trimmed) return;
       setCreating(true);
       try {
-        await window.api.config.create(activeKind, scope, trimmed, cwd);
+        await window.api.config.create(provider, activeKind, scope, trimmed, cwd);
         queryClient.invalidateQueries({ queryKey: ["claude-config"] });
         onSelect({ kind: activeKind, scope, name: trimmed });
         setNewName("");
@@ -107,7 +126,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
         setCreating(false);
       }
     },
-    [activeKind, cwd, newName, queryClient, onSelect],
+    [activeKind, provider, instrName, cwd, newName, queryClient, onSelect],
   );
 
   const existingProjectClaudeMd = projectEntries.find((e) => e.kind === "claudemd");
@@ -159,7 +178,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
               whiteSpace: "nowrap",
             }}
           >
-            {entry.kind === "claudemd" ? "CLAUDE.md" : entry.name}
+            {entry.kind === "claudemd" ? instrName : entry.name}
           </span>
           <span
             style={{
@@ -210,7 +229,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
           }}
         >
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", flex: 1 }}>
-            Create CLAUDE.md ({scope})?
+            Create {instrName} ({scope})?
           </span>
           <button
             onClick={() => void handleCreate(scope)}
@@ -392,7 +411,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
           flexShrink: 0,
         }}
       >
-        {KIND_TABS.map((t) => (
+        {kindTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => {
@@ -488,7 +507,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
                 setNewName("");
               },
               activeKind === "claudemd" && existingProjectClaudeMd
-                ? "CLAUDE.md already exists"
+                ? `${instrName} already exists`
                 : undefined,
               activeKind === "claudemd" && Boolean(existingProjectClaudeMd),
             )}
@@ -505,7 +524,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                No {activeKind === "claudemd" ? "CLAUDE.md" : activeKind + "s"} in this project
+                No {activeKind === "claudemd" ? instrName : activeKind + "s"} in this project
               </div>
             ) : (
               projectEntries.map(renderRow)
@@ -535,7 +554,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
             setNewName("");
           },
           activeKind === "claudemd" && existingGlobalClaudeMd
-            ? "CLAUDE.md already exists"
+            ? `${instrName} already exists`
             : undefined,
           activeKind === "claudemd" && Boolean(existingGlobalClaudeMd),
         )}
@@ -552,7 +571,7 @@ export function ConfigPanel({ cwd, isActive, selected, onSelect }: Props) {
               borderBottom: "1px solid var(--border)",
             }}
           >
-            No {activeKind === "claudemd" ? "CLAUDE.md" : activeKind + "s"} globally
+            No {activeKind === "claudemd" ? instrName : activeKind + "s"} globally
           </div>
         ) : (
           globalEntries.map(renderRow)

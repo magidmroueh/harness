@@ -7,6 +7,7 @@ interface Tab {
   id: string;
   label: string;
   cwd: string;
+  launchCommand: string;
 }
 
 interface Props {
@@ -24,7 +25,7 @@ export function BottomTerminal({ isOpen, onToggle, theme }: Props) {
     const id = crypto.randomUUID();
     const cwd = window.api.homeDir;
     const label = `Terminal ${tabs.length + 1}`;
-    setTabs((prev) => [...prev, { id, label, cwd }]);
+    setTabs((prev) => [...prev, { id, label, cwd, launchCommand: "" }]);
     setActiveTabId(id);
   }, [tabs.length]);
 
@@ -44,11 +45,8 @@ export function BottomTerminal({ isOpen, onToggle, theme }: Props) {
     });
   }, [onToggle]);
 
-  // Auto-create first tab when opened with no tabs
   useEffect(() => {
-    if (isOpen && tabs.length === 0) {
-      addTab();
-    }
+    if (isOpen && tabs.length === 0) addTab();
   }, [isOpen, tabs.length, addTab]);
 
   if (!isOpen) return null;
@@ -195,7 +193,7 @@ export function BottomTerminal({ isOpen, onToggle, theme }: Props) {
             sessionId={`bottom-${tab.id}`}
             cwd={tab.cwd}
             isActive={tab.id === activeTabId}
-            shellCommand=""
+            launchCommand={tab.launchCommand}
             theme={theme}
           />
         ))}

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { useRef } from "react";
 import { SunIcon, MoonIcon } from "./icons";
-import type { IconHandle } from "../types";
+import type { IconHandle, ProviderId, ProviderStatus } from "../types";
 import iconDark from "../assets/icon-dark.svg";
 import iconLight from "../assets/icon-light.svg";
 
@@ -21,14 +21,23 @@ const titleBarStyle: Record<string, unknown> = {
 
 interface Props {
   theme: "light" | "dark";
+  providers: ProviderStatus[];
+  selectedProvider: ProviderId;
+  onSelectProvider: (providerId: ProviderId) => void;
   onToggleTheme: () => void;
 }
 
-export function TitleBar({ theme, onToggleTheme }: Props) {
+export function TitleBar({
+  theme,
+  providers,
+  selectedProvider,
+  onSelectProvider,
+  onToggleTheme,
+}: Props) {
   const iconRef = useRef<IconHandle>(null);
   return (
     <header className="titlebar" style={titleBarStyle as CSSProperties}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <img
           src={theme === "dark" ? iconDark : iconLight}
           alt="Harness"
@@ -45,6 +54,38 @@ export function TitleBar({ theme, onToggleTheme }: Props) {
         >
           Harness
         </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginLeft: 12,
+            WebkitAppRegion: "no-drag",
+          } as CSSProperties}
+        >
+          <select
+            value={selectedProvider}
+            onChange={(e) => onSelectProvider(e.currentTarget.value as ProviderId)}
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-full)",
+              color: "var(--text-primary)",
+              padding: "5px 12px",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-sans)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.label}
+                {!provider.installed ? " (Install)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div
         onClick={onToggleTheme}
