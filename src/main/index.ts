@@ -104,6 +104,11 @@ ipcMain.handle(
       env: {
         ...process.env,
         PATH: currentPath ? `${EXTRA_PATH}:${currentPath}` : EXTRA_PATH,
+        // Powerlevel10k's instant prompt hijacks stdin while `.zshrc` loads,
+        // swallowing anything we write into the PTY before the real prompt
+        // is ready. Disable it for our tabs; the user's regular terminal is
+        // unaffected.
+        POWERLEVEL9K_INSTANT_PROMPT: "off",
         COLORTERM: "truecolor",
         TERM_PROGRAM: "Harness",
         TERM_PROGRAM_VERSION: app.getVersion(),
