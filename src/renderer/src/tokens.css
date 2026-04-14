@@ -37,16 +37,16 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0c0a09;
-  --bg-surface: #1c1917;
-  --text-primary: #fafaf9;
-  --text-secondary: #a8a29e;
-  --text-muted: #78716c;
-  --border: #292524;
-  --border-subtle: rgba(41, 37, 36, 0.5);
+  --bg: #1c1f24;
+  --bg-surface: #23272e;
+  --text-primary: #e5e7ea;
+  --text-secondary: #a1a5ad;
+  --text-muted: #71757d;
+  --border: #2e333a;
+  --border-subtle: rgba(46, 51, 58, 0.5);
   --accent: #facc15;
   --dot-current: #4ade80;
-  --dot-past: #78716c;
+  --dot-past: #71757d;
   --dot-working: #fbbf24;
   --dot-error: #f87171;
 }

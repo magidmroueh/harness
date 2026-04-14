@@ -38,7 +38,7 @@ function createWindow(): void {
     minHeight: 600,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: "#0c0a09",
+    backgroundColor: "#1c1f24",
     icon: join(__dirname, "../../resources/icon.icns"),
     show: false,
     webPreferences: {
