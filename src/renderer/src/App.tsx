@@ -47,7 +47,8 @@ function readSelectedProvider(): ProviderId {
 interface SplitPane {
   id: string;
   cwd: string;
-  launchCommand: string;
+  cmd: string;
+  args: string[];
   label: string;
 }
 
@@ -292,7 +293,16 @@ export function App() {
         const id = crypto.randomUUID();
         setSplitPanes((prev) => {
           const next = new Map(prev);
-          next.set(activeTerminalId, { id, cwd, launchCommand: action.command, label: action.label });
+          next.set(activeTerminalId, {
+            id,
+            cwd,
+            cmd: "/bin/zsh",
+            // `-ic <cmd>` loads .zshrc (nvm/aliases/PATH) then runs the
+            // command from argv, so it can't be buffered by p10k's
+            // instant prompt or any other stdin-capturing shell plugin.
+            args: ["-ic", action.command],
+            label: action.label,
+          });
           return next;
         });
       }
@@ -549,7 +559,8 @@ export function App() {
                               sessionId={pane.id}
                               cwd={pane.cwd}
                               isActive={isActive}
-                              launchCommand={pane.launchCommand}
+                              cmd={pane.cmd}
+                              args={pane.args}
                               theme={theme}
                             />
                           </div>
