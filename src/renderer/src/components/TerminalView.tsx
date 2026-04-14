@@ -14,13 +14,13 @@ interface Props {
 }
 
 const DARK_THEME = {
-  background: "#0c0a09",
-  foreground: "#fafaf9",
-  cursor: "#fafaf9",
-  cursorAccent: "#0c0a09",
-  selectionBackground: "#44403c",
-  selectionForeground: "#fafaf9",
-  black: "#1c1917",
+  background: "#1c1f24",
+  foreground: "#e5e7ea",
+  cursor: "#e5e7ea",
+  cursorAccent: "#1c1f24",
+  selectionBackground: "#3a3f47",
+  selectionForeground: "#e5e7ea",
+  black: "#23272e",
   red: "#ef4444",
   green: "#22c55e",
   yellow: "#eab308",
