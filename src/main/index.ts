@@ -197,9 +197,9 @@ ipcMain.handle("sessions:detect-pm", (_, { cwd }) => detectPackageManager(cwd));
 ipcMain.handle("providers:list", () => providers.list());
 ipcMain.handle("providers:install", (_, { id }: { id: ProviderId }) => providers.install(id));
 ipcMain.handle(
-  "providers:launch-command",
+  "providers:launch-spec",
   (_, { id, resumeSessionId }: { id: ProviderId; resumeSessionId?: string }) =>
-    providers.getLaunchCommand(id, resumeSessionId),
+    providers.getLaunchSpec(id, resumeSessionId),
 );
 
 ipcMain.handle("git:branch", async (_, { cwd }: { cwd: string }) => {
